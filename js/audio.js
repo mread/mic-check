@@ -29,7 +29,9 @@ export const qualityTestData = {
     deviceId: null,
     deviceLabel: null,
     appliedSettings: null,
-    contextSampleRate: null
+    contextSampleRate: null,
+    userAgcPreference: false,
+    selectedDeviceId: null
 };
 
 /**
@@ -53,6 +55,8 @@ export function resetQualityTestData() {
     qualityTestData.deviceLabel = null;
     qualityTestData.appliedSettings = null;
     qualityTestData.contextSampleRate = null;
+    qualityTestData.userAgcPreference = false;
+    qualityTestData.selectedDeviceId = null;
 }
 
 /**
@@ -188,6 +192,7 @@ export function stopQualityAudio() {
 
 /**
  * Get RMS value from an analyser node
+ * Uses Float32Array for full 32-bit precision (vs 8-bit with getByteTimeDomainData)
  * @param {AnalyserNode} analyser - The analyser to read from (defaults to main)
  * @returns {number} RMS value (0 to 1)
  */
@@ -196,13 +201,12 @@ export function getRmsFromAnalyser(analyser) {
     if (!targetAnalyser) return 0;
     
     const bufferLength = targetAnalyser.fftSize;
-    const dataArray = new Uint8Array(bufferLength);
-    targetAnalyser.getByteTimeDomainData(dataArray);
+    const dataArray = new Float32Array(bufferLength);
+    targetAnalyser.getFloatTimeDomainData(dataArray);
     
     let sum = 0;
     for (let i = 0; i < bufferLength; i++) {
-        const sample = (dataArray[i] - 128) / 128;
-        sum += sample * sample;
+        sum += dataArray[i] * dataArray[i];
     }
     return Math.sqrt(sum / bufferLength);
 }
