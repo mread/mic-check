@@ -147,7 +147,11 @@ export function generateDiagnosticsReport() {
             channelCount: qualityTestData.appliedSettings?.channelCount || null
         },
         testConfiguration: {
-            autoGainControl: qualityTestData.agcEnabled || false,
+            autoGainControl: {
+                requested: qualityTestData.appliedSettings?.agcRequested ?? qualityTestData.agcEnabled ?? false,
+                reported: qualityTestData.appliedSettings?.autoGainControl ?? null,
+                note: "Browser-reported values may not reflect actual audio processing"
+            },
             noiseSuppression: qualityTestData.appliedSettings?.noiseSuppression || false,
             echoCancellation: qualityTestData.appliedSettings?.echoCancellation || false
         },

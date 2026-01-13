@@ -42,3 +42,11 @@ python3 -m http.server 8765
 - Dead channel diagnosis with fix instructions
 - Downloadable JSON diagnostics
 - Privacy-focused (no server uploads)
+
+## Code Review with CodeRabbit
+
+To review uncommitted changes in plain text mode:
+
+```bash
+coderabbit review --type uncommitted --plain
+```

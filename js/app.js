@@ -132,15 +132,7 @@ async function runQuickTest() {
         currentStream = result.stream;
         btnEl.style.display = 'none';
         visualizerEl.style.display = 'block';
-        statusEl.innerHTML = `
-            <div class="status-card success">
-                <span class="status-icon">🎤</span>
-                <div class="status-text">
-                    <div class="status-title">Microphone connected!</div>
-                    <div class="status-detail">Speak or make a sound to see the audio level</div>
-                </div>
-            </div>
-        `;
+        statusEl.innerHTML = ''; // Clear the "requesting" status - meter speaks for itself
         await startLevelMeter('quick-level-bar', 'quick-level-text');
     } else {
         let message = 'Unknown error';
@@ -261,7 +253,8 @@ async function startLevelMeter(barId, textId, resultId = 'quick-result') {
                 }
             }
             
-            barEl.style.width = `${level}%`;
+            // Use clip-path to reveal the bar - inset from right = (100 - level)%
+            barEl.style.clipPath = `inset(0 ${100 - level}% 0 0)`;
             textEl.textContent = `${Math.round(level)}%`;
             
             if (level > maxLevel) maxLevel = level;
@@ -289,7 +282,7 @@ function stopQuickTest() {
     document.getElementById('btn-quick-test').style.display = 'block';
     document.getElementById('quick-visualizer').style.display = 'none';
     document.getElementById('quick-result').style.display = 'none';
-    document.getElementById('quick-level-bar').style.width = '0%';
+    document.getElementById('quick-level-bar').style.clipPath = 'inset(0 100% 0 0)';
     document.getElementById('quick-level-text').textContent = '0%';
     document.getElementById('quick-test-status').innerHTML = '';
 }
@@ -300,37 +293,23 @@ function stopQuickTest() {
 async function runPrivacyCheck() {
     const statusEl = document.getElementById('privacy-permission-status');
     const resultsEl = document.getElementById('privacy-results');
+    const buttonEl = document.getElementById('btn-privacy-check');
+    
+    // Hide button while checking
+    if (buttonEl) buttonEl.style.display = 'none';
     
     statusEl.innerHTML = `
         <div class="status-card info">
             <span class="status-icon">⏳</span>
             <div class="status-text">
-                <div class="status-title">Checking permission status...</div>
+                <div class="status-title">Checking...</div>
             </div>
         </div>
     `;
     
     const perm = await checkPermission();
     
-    const stateInfo = {
-        'granted': { icon: '🟢', title: 'Permission GRANTED', detail: 'This website currently has permission to access your microphone.', class: 'success' },
-        'denied': { icon: '🔴', title: 'Permission DENIED', detail: 'You have blocked microphone access for this website.', class: 'error' },
-        'prompt': { icon: '🟡', title: 'Permission not yet requested', detail: 'The browser will ask before granting any microphone access.', class: 'warning' },
-        'unknown': { icon: '❓', title: 'Cannot check permissions', detail: 'Your browser doesn\'t support the Permissions API.', class: 'info' }
-    };
-    
-    const info = stateInfo[perm.state] || stateInfo['unknown'];
-    
-    statusEl.innerHTML = `
-        <div class="status-card ${info.class}">
-            <span class="status-icon">${info.icon}</span>
-            <div class="status-text">
-                <div class="status-title">${info.title}</div>
-                <div class="status-detail">${info.detail}</div>
-            </div>
-        </div>
-    `;
-    
+    // Get device info to help determine actual state
     let deviceInfo = { count: 0, hasLabels: false };
     try {
         const devices = await navigator.mediaDevices.enumerateDevices();
@@ -339,31 +318,81 @@ async function runPrivacyCheck() {
         deviceInfo.hasLabels = mics.some(d => d.label && d.label.length > 0);
     } catch (e) {}
     
-    resultsEl.style.display = 'block';
-    resultsEl.innerHTML = `
-        <div class="info-box">
-            <h4>📊 What This Website Can See</h4>
-            <table class="info-table">
-                <tr><th>Information</th><th>Visible?</th></tr>
-                <tr><td>Number of microphones</td><td>${deviceInfo.count > 0 ? `Yes (${deviceInfo.count} found)` : 'No'}</td></tr>
-                <tr><td>Microphone names/brands</td><td>${deviceInfo.hasLabels ? '✅ Yes' : '❌ No (protected)'}</td></tr>
-                <tr><td>Audio from your mic</td><td>${perm.state === 'granted' ? '⚠️ If actively requested' : '❌ No'}</td></tr>
-                <tr><td>Background listening</td><td>❌ Not possible in browsers</td></tr>
-            </table>
+    // Determine the actual state more accurately
+    // If we can see device labels, permission has been granted (even if Permissions API says "prompt")
+    let effectiveState = perm.state;
+    if (perm.state === 'prompt' && deviceInfo.hasLabels) {
+        effectiveState = 'granted'; // Labels only visible after permission granted
+    }
+    
+    const stateInfo = {
+        'granted': { 
+            icon: '🟢', 
+            title: 'Microphone access is allowed', 
+            detail: 'You\'ve granted this site permission to use your microphone.',
+            class: 'success' 
+        },
+        'denied': { 
+            icon: '🔴', 
+            title: 'Microphone access is blocked', 
+            detail: 'You\'ve blocked this site from accessing your microphone.',
+            class: 'error' 
+        },
+        'prompt': { 
+            icon: '🟡', 
+            title: 'Permission will be requested when needed', 
+            detail: 'Your browser will ask you before any mic access.',
+            class: 'warning' 
+        },
+        'unknown': { 
+            icon: '❓', 
+            title: 'Cannot determine permission status', 
+            detail: 'Your browser doesn\'t support checking permissions.',
+            class: 'info' 
+        }
+    };
+    
+    const info = stateInfo[effectiveState] || stateInfo['unknown'];
+    
+    statusEl.innerHTML = `
+        <div class="status-card ${info.class}" style="margin-bottom: 1rem;">
+            <span class="status-icon">${info.icon}</span>
+            <div class="status-text">
+                <div class="status-title">${info.title}</div>
+                <div class="status-detail">${info.detail}</div>
+            </div>
         </div>
-        ${perm.state === 'granted' ? `
-        <div class="info-box" style="background: var(--warning-light); border: 1px solid var(--warning);">
-            <h4>⚠️ You've granted microphone access</h4>
-            <p>This means this website can request your microphone when you're on this page. To revoke access:</p>
-            <ul>
-                <li>Click the lock/info icon in your browser's address bar</li>
-                <li>Find "Microphone" and change it to "Block" or "Ask"</li>
-            </ul>
-        </div>
-        ` : ''}
     `;
     
+    resultsEl.style.display = 'block';
+    
+    if (effectiveState === 'granted') {
+        resultsEl.innerHTML = `
+            <p style="margin-bottom: 1rem; color: var(--text-secondary);">
+                <strong>Your mic is NOT being recorded right now.</strong> Permission just means this site <em>can</em> request access — it doesn't mean it's listening. Browsers show a recording indicator when audio is actually being captured.
+            </p>
+            <p style="margin-bottom: 1rem;">To revoke access, click the 🔒 icon in your address bar and change Microphone to "Block" or "Ask".</p>
+        `;
+    } else if (effectiveState === 'denied') {
+        resultsEl.innerHTML = `
+            <p style="margin-bottom: 1rem; color: var(--text-secondary);">
+                No website code can access your microphone. To re-enable, click the 🔒 icon in your address bar and change Microphone to "Allow" or "Ask".
+            </p>
+        `;
+    } else if (effectiveState === 'prompt') {
+        resultsEl.innerHTML = `
+            <p style="color: var(--text-secondary);">
+                This is the default, privacy-respecting state. Your browser will show a permission dialog before any site can access your mic.
+            </p>
+        `;
+    } else {
+        resultsEl.innerHTML = '';
+    }
+    
     populateResetInstructions();
+    
+    // Re-show button so user can check again
+    if (buttonEl) buttonEl.style.display = 'inline-flex';
 }
 
 function populateResetInstructions() {
@@ -381,8 +410,7 @@ async function runTroubleshoot() {
     const contentEl = document.getElementById('troubleshoot-content');
     const subtitleEl = document.getElementById('ts-subtitle');
     
-    document.getElementById('ts-step-1').classList.add('complete');
-    document.getElementById('ts-step-2').classList.add('active');
+    if (!contentEl || !subtitleEl) return;
     
     const hasMediaDevices = !!navigator.mediaDevices;
     const hasGetUserMedia = !!navigator.mediaDevices?.getUserMedia;
@@ -422,9 +450,6 @@ async function runTroubleshoot() {
         devices = allDevices.filter(d => d.kind === 'audioinput');
     } catch (e) {}
     
-    document.getElementById('ts-step-2').classList.add('complete');
-    document.getElementById('ts-step-3').classList.add('active');
-    
     subtitleEl.textContent = 'Attempting microphone access...';
     
     contentEl.innerHTML = `
@@ -437,9 +462,6 @@ async function runTroubleshoot() {
     `;
     
     const result = await requestMicAccess();
-    
-    document.getElementById('ts-step-3').classList.add('complete');
-    document.getElementById('ts-step-4').classList.add('active');
     
     if (result.success) {
         currentStream = result.stream;
@@ -479,7 +501,6 @@ async function runTroubleshoot() {
         `;
         
         await startLevelMeter('ts-level-bar', 'ts-level-text', null);
-        document.getElementById('ts-step-4').classList.add('complete');
     } else {
         subtitleEl.textContent = 'Issue found';
         
@@ -529,54 +550,16 @@ function showLowVolumeWarning(containerEl) {
     if (lowVolumeWarningShown) return;
     lowVolumeWarningShown = true;
     
-    if (!isFirefoxBased()) return;
-    
     containerEl.insertAdjacentHTML('afterend', getLowVolumeWarningHtml());
     
-    document.getElementById('btn-try-agc')?.addEventListener('click', handleAgcRetry);
-}
-
-async function handleAgcRetry() {
-    const btn = document.getElementById('btn-try-agc');
-    const warningPanel = btn.closest('.info-box');
-    btn.disabled = true;
-    btn.textContent = '⏳ Restarting...';
-    
-    stopStream();
-    audioDetected = false;
-    
-    try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-                autoGainControl: { ideal: true },
-                noiseSuppression: { ideal: true },
-                echoCancellation: { ideal: true }
-            }
-        });
-        currentStream = stream;
-        
-        const track = stream.getAudioTracks()[0];
-        const settings = track.getSettings();
-        
-        const barId = 'quick-level-bar';
-        const textId = 'quick-level-text';
-        if (document.getElementById(barId)) {
-            await startLevelMeter(barId, textId, null);
-        }
-        
-        if (warningPanel) {
-            warningPanel.outerHTML = `
-                <div class="info-box" style="margin-top: 1rem; background: #e7f3ff; border: 1px solid #2196f3;">
-                    <h4 style="margin-bottom: 0.5rem;">ℹ️ AGC is enabled, but Firefox boosts less than Chrome</h4>
-                    <p>Firefox confirms AGC is active, but its implementation is more conservative.</p>
-                </div>
-            `;
-        }
-        
-    } catch (error) {
-        btn.textContent = '❌ Failed - ' + error.message;
-        btn.disabled = false;
-    }
+    document.getElementById('link-to-level-check')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        stopStream();
+        resetQualityTest(); // Reset to beginning when entering Level Check
+        showScreen('screen-quality');
+        const select = document.getElementById('quality-device-select');
+        if (select) populateDeviceList(select);
+    });
 }
 
 function showFingerprintingWarning(containerEl) {
@@ -646,7 +629,7 @@ async function startSilenceRecording() {
         qualityTestData.noiseFloorSamples.push(rms);
         
         const percent = Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
-        document.getElementById('silence-level-bar').style.width = `${percent}%`;
+        document.getElementById('silence-level-bar').style.clipPath = `inset(0 ${100 - percent}% 0 0)`;
         document.getElementById('silence-level-text').textContent = `${Math.round(percent)}%`;
         document.getElementById('silence-db-reading').textContent = formatDb(db);
         
@@ -707,8 +690,9 @@ function goToVoiceStep() {
 }
 
 async function startVoiceRecording() {
-    const btn = document.getElementById('btn-start-voice');
-    btn.style.display = 'none';
+    // Hide the pre-start section with the button
+    const preStart = document.getElementById('voice-pre-start');
+    if (preStart) preStart.style.display = 'none';
     
     document.getElementById('voice-visualizer').style.display = 'block';
     
@@ -741,10 +725,9 @@ async function startVoiceRecording() {
         }
         
         const percent = Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
-        document.getElementById('voice-level-bar').style.width = `${percent}%`;
+        document.getElementById('voice-level-bar').style.clipPath = `inset(0 ${100 - percent}% 0 0)`;
         document.getElementById('voice-level-text').textContent = `${Math.round(percent)}%`;
         document.getElementById('voice-db-reading').textContent = formatDb(db);
-        document.getElementById('voice-lufs-reading').textContent = formatLufs(lufs);
         
         const remaining = Math.ceil((duration - elapsed) / 1000);
         document.getElementById('voice-countdown').textContent = remaining > 0 ? `${remaining}s remaining` : '';
@@ -774,7 +757,6 @@ function finishVoiceRecording() {
     document.getElementById('voice-result').style.display = 'block';
     document.getElementById('voice-lufs-final').textContent = formatLufs(qualityTestData.voiceLufs);
     document.getElementById('voice-peak-final').textContent = formatDb(qualityTestData.voicePeakDb);
-    document.getElementById('voice-snr-final').textContent = `${qualityTestData.snr.toFixed(1)} dB`;
     document.getElementById('btn-show-results').style.display = 'inline-flex';
     
     stopQualityAudio();
@@ -806,8 +788,11 @@ function resetQualityTest() {
     
     document.getElementById('btn-start-silence').style.display = 'inline-flex';
     document.getElementById('btn-next-to-voice').style.display = 'none';
-    document.getElementById('btn-start-voice').style.display = 'inline-flex';
     document.getElementById('btn-show-results').style.display = 'none';
+    
+    // Reset voice pre-start section
+    const preStart = document.getElementById('voice-pre-start');
+    if (preStart) preStart.style.display = 'block';
 }
 
 // Note: displayQualityResults is a large function that renders the results HTML.
@@ -901,7 +886,13 @@ function setupListeners() {
         runQuickTest();
     });
     document.getElementById('btn-home-quality')?.addEventListener('click', () => {
+        resetQualityTest(); // Reset to beginning when entering Level Check
         showScreen('screen-quality');
+        // Auto-load microphone list when entering Level Check
+        const select = document.getElementById('quality-device-select');
+        if (select) {
+            populateDeviceList(select);
+        }
     });
     
     // Journey cards
@@ -926,7 +917,7 @@ function setupListeners() {
     
     // Quick test
     document.getElementById('btn-quick-test')?.addEventListener('click', runQuickTest);
-    document.getElementById('btn-stop-quick-test')?.addEventListener('click', stopQuickTest);
+    document.getElementById('btn-quick-stop')?.addEventListener('click', stopQuickTest);
     
     // Privacy check
     document.getElementById('btn-privacy-check')?.addEventListener('click', runPrivacyCheck);

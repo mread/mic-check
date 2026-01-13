@@ -206,10 +206,7 @@
             text-align: center;
         }
         
-        .quality-action {
-            background: linear-gradient(135deg, #e8f0fe 0%, #f3e5f5 100%);
-            border: 2px solid var(--accent);
-        }
+        /* Removed - Level Check now matches Quick Test styling */
         
         /* Buttons */
         .btn {
@@ -323,19 +320,41 @@
         }
         
         .level-bar-container {
-            height: 48px;
-            background: #e8eaed;
-            border-radius: 8px;
+            height: 32px;
+            /* Fixed color zones like a real VU meter - dark/inactive colors */
+            background: linear-gradient(90deg, 
+                #1a3d1a 0%,      /* dark green zone */
+                #1a3d1a 60%,     /* green up to -12dB equivalent */
+                #3d3d1a 60%,     /* dark yellow zone */
+                #3d3d1a 85%,     /* yellow up to -6dB equivalent */
+                #3d1a1a 85%,     /* dark red zone */
+                #3d1a1a 100%     /* red at peak */
+            );
+            border-radius: 4px;
             overflow: hidden;
             position: relative;
+            border: 1px solid #333;
         }
         
         .level-bar {
+            position: absolute;
+            top: 0;
+            left: 0;
             height: 100%;
-            background: linear-gradient(90deg, #22c55e, #3b82f6, #8b5cf6);
-            border-radius: 8px;
-            transition: width 0.05s ease;
-            width: 0%;
+            width: 100%; /* Always full width */
+            /* Bright gradient - same zones as container but bright colors */
+            background: linear-gradient(90deg, 
+                #22c55e 0%,      /* bright green */
+                #22c55e 60%,     /* green zone */
+                #eab308 60%,     /* bright yellow */
+                #eab308 85%,     /* yellow zone */
+                #ef4444 85%,     /* bright red */
+                #ef4444 100%     /* red zone */
+            );
+            border-radius: 3px;
+            transition: clip-path 0.03s ease;
+            /* Use clip-path to reveal only the active portion */
+            clip-path: inset(0 100% 0 0); /* Start fully clipped */
         }
         
         .level-text {
@@ -405,7 +424,21 @@
             margin: 0.25rem 0;
         }
         
-        /* Progress Steps */
+        /* Back Link */
+        .back-link {
+            display: inline-block;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+            padding: 0.25rem 0;
+        }
+        
+        .back-link:hover {
+            color: var(--accent);
+        }
+        
+        /* Progress Steps (for multi-step flows only) */
         .steps {
             display: flex;
             gap: 0.5rem;
@@ -619,15 +652,15 @@
                         </button>
                     </div>
                     
-                    <!-- Quality Analysis -->
-                    <div class="primary-action quality-action">
+                    <!-- Level Check -->
+                    <div class="primary-action">
                         <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📊</div>
-                        <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem;">Quality Analysis</h2>
+                        <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem;">Level Check</h2>
                         <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.9rem;">
-                            Will people actually hear you clearly?
+                            Are you loud enough to be heard?
                         </p>
                         <button id="btn-home-quality" class="btn btn-primary" style="width: 100%;">
-                            Analyze Quality
+                            Check Levels
                         </button>
                     </div>
                 </div>
@@ -652,11 +685,16 @@
                         <div class="journey-desc">Works here, not there?</div>
                     </div>
                     
-                    <div class="journey-card" style="display: flex; align-items: center; justify-content: center; background: var(--bg-muted); border-style: dashed;">
-                        <a href="https://github.com/mread/mic-check" target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: var(--text-muted); text-align: center; font-size: 0.85rem;">
-                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">💻</div>
-                            <div>View source</div>
-                        </a>
+                    <div class="journey-card" style="background: var(--bg-muted); border-style: dashed; opacity: 0.7; cursor: default;">
+                        <div class="journey-icon">🎚️</div>
+                        <div class="journey-title" style="color: var(--text-muted);">Gain Staging</div>
+                        <div class="journey-desc">Coming soon</div>
+                    </div>
+                    
+                    <div class="journey-card" style="background: var(--bg-muted); border-style: dashed; opacity: 0.7; cursor: default;">
+                        <div class="journey-icon">🤝</div>
+                        <div class="journey-title" style="color: var(--text-muted);">Help a Friend</div>
+                        <div class="journey-desc">Coming soon</div>
                     </div>
                 </div>
             </div>
@@ -670,18 +708,14 @@
 
         <!-- Screen 2: Quick Test -->
         <div id="screen-quick-test" class="screen">
-            <div class="steps">
-                <div class="step active"></div>
-                <div class="step"></div>
-                <div class="step"></div>
-            </div>
+            <a href="#" class="back-link" onclick="window.MicCheck.showScreen('screen-select'); return false;">← Back</a>
             
             <div class="card">
                 <div class="card-header">
-                    <span class="card-icon">⚡</span>
+                    <span class="card-icon">🎤</span>
                     <div>
                         <div class="card-title">Quick Microphone Test</div>
-                        <div class="card-subtitle">Click the button below to test your microphone</div>
+                        <div class="card-subtitle">Click the button to test your microphone</div>
                     </div>
                 </div>
                 
@@ -692,21 +726,20 @@
                 </button>
                 
                 <div id="quick-visualizer" style="display: none;">
+                    <p style="margin-bottom: 0.75rem; color: var(--text-secondary);">
+                        Speak or make a sound — the bar should move:
+                    </p>
                     <div class="visualizer-container">
-                        <div class="visualizer-label">
-                            <strong>🎤 Audio Level</strong> — speak or make noise, the bar should move
-                        </div>
                         <div class="level-bar-container">
                             <div id="quick-level-bar" class="level-bar"></div>
                             <span id="quick-level-text" class="level-text">0%</span>
                         </div>
                     </div>
                     
-                    <div id="quick-result" class="status-card success" style="display: none;">
+                    <div id="quick-result" class="status-card success" style="display: none; margin-top: 1rem;">
                         <span class="status-icon">✅</span>
                         <div class="status-text">
                             <div class="status-title">Your microphone is working!</div>
-                            <div class="status-detail">We detected audio input.</div>
                         </div>
                     </div>
                     
@@ -715,18 +748,11 @@
                     </button>
                 </div>
             </div>
-            
-            <button class="btn btn-secondary" onclick="window.MicCheck.showScreen('screen-select')">← Back to menu</button>
         </div>
 
         <!-- Screen 3: Troubleshoot -->
         <div id="screen-troubleshoot" class="screen">
-            <div class="steps">
-                <div id="ts-step-1" class="step active"></div>
-                <div id="ts-step-2" class="step"></div>
-                <div id="ts-step-3" class="step"></div>
-                <div id="ts-step-4" class="step"></div>
-            </div>
+            <a href="#" class="back-link" onclick="window.MicCheck.showScreen('screen-select'); return false;">← Back</a>
             
             <div class="card">
                 <div class="card-header">
@@ -747,12 +773,12 @@
                     </div>
                 </div>
             </div>
-            
-            <button class="btn btn-secondary" onclick="window.MicCheck.showScreen('screen-select')">← Back to menu</button>
         </div>
 
         <!-- Screen 4: Privacy Check -->
         <div id="screen-privacy" class="screen">
+            <a href="#" class="back-link" onclick="window.MicCheck.showScreen('screen-select'); return false;">← Back</a>
+            
             <div class="card">
                 <div class="card-header">
                     <span class="card-icon">🔐</span>
@@ -765,57 +791,44 @@
                 <div id="privacy-content">
                     <div id="privacy-permission-status"></div>
                     
-                    <button id="btn-privacy-check" class="btn btn-primary btn-large">
-                        🔍 Check Current Permission Status
+                    <button id="btn-privacy-check" class="btn btn-secondary" style="display: none;">
+                        🔄 Re-check
                     </button>
                     
                     <div id="privacy-results" style="display: none;">
                         <!-- Populated by JS -->
                     </div>
                 </div>
+                
+                <details style="margin-top: 1.5rem;">
+                    <summary style="cursor: pointer; font-weight: 500;">🔄 How to reset microphone permissions</summary>
+                    <div id="reset-instructions" style="margin-top: 0.75rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px;">
+                        <!-- Populated based on browser -->
+                    </div>
+                </details>
             </div>
             
             <div class="card">
                 <div class="card-header">
-                    <span class="card-icon">📚</span>
+                    <span class="card-icon">💡</span>
                     <div>
-                        <div class="card-title">Understanding Microphone Permissions</div>
+                        <div class="card-title">Good to know</div>
                     </div>
                 </div>
                 
-                <div class="info-box">
-                    <h4>🟢 What "Granted" means</h4>
-                    <p>This website can access your microphone <em>when you're on this page</em>. Audio is only captured when a page actively requests it — permission alone doesn't enable listening.</p>
-                </div>
-                
-                <div class="info-box">
-                    <h4>🟡 What "Prompt" means</h4>
-                    <p>The browser will ask you before any website can access your mic. This is the default, privacy-respecting state.</p>
-                </div>
-                
-                <div class="info-box">
-                    <h4>🔴 What "Denied" means</h4>
-                    <p>You've blocked microphone access for this site. No website code can access your mic until you change this setting.</p>
-                </div>
-                
-                <div class="collapsible" id="collapse-reset">
-                    <div class="collapsible-header" tabindex="0" role="button" aria-expanded="false" aria-controls="collapse-reset-content" onclick="window.MicCheck.toggleCollapsible('collapse-reset', this)" onkeydown="window.MicCheck.handleCollapsibleKeydown(event, 'collapse-reset', this)">
-                        <span>🔄 How to reset permissions for any website</span>
-                        <span class="collapsible-arrow">▼</span>
-                    </div>
-                    <div class="collapsible-content" id="collapse-reset-content">
-                        <div id="reset-instructions">
-                            <!-- Populated based on browser -->
-                        </div>
-                    </div>
-                </div>
+                <ul style="margin: 0; padding-left: 1.25rem; color: var(--text-secondary); line-height: 1.8;">
+                    <li><strong>Permission ≠ listening.</strong> Granting permission lets a site <em>request</em> your mic — it doesn't mean it's recording.</li>
+                    <li><strong>Browsers show when mic is active.</strong> Look for a red dot or microphone icon in your tab/address bar.</li>
+                    <li><strong>Permissions are per-site.</strong> Each website has its own permission setting.</li>
+                    <li><strong>Closing the tab stops access.</strong> No website can listen when you're not on it.</li>
+                </ul>
             </div>
-            
-            <button class="btn btn-secondary" onclick="window.MicCheck.showScreen('screen-select')">← Back to menu</button>
         </div>
 
         <!-- Screen 5: App-specific Debug -->
         <div id="screen-app-debug" class="screen">
+            <a href="#" class="back-link" onclick="window.MicCheck.showScreen('screen-select'); return false;">← Back</a>
+            
             <div class="card">
                 <div class="card-header">
                     <span class="card-icon">🌐</span>
@@ -835,242 +848,164 @@
                     <div id="app-debug-results" style="display: none;"></div>
                 </div>
             </div>
-            
-            <button class="btn btn-secondary" onclick="window.MicCheck.showScreen('screen-select')">← Back to menu</button>
         </div>
 
-        <!-- Screen 6: Quality Analysis -->
+        <!-- Screen 6: Level Check -->
         <div id="screen-quality" class="screen">
+            <a href="#" class="back-link" onclick="window.MicCheck.showScreen('screen-select'); return false;">← Back</a>
+            
             <div class="card">
                 <div class="card-header">
                     <span class="card-icon">📊</span>
                     <div>
-                        <div class="card-title">Microphone Quality Analysis</div>
-                        <div class="card-subtitle">Will people actually hear you clearly?</div>
+                        <div class="card-title">Microphone Level Check</div>
+                        <div class="card-subtitle">Are you loud enough to be heard clearly?</div>
                     </div>
                 </div>
                 
                 <div id="quality-intro">
-                    <div class="info-box" style="margin-bottom: 1.5rem;">
-                        <h4 style="margin-bottom: 0.75rem;">🎯 What we'll measure</h4>
-                        <p style="margin-bottom: 1rem;">This test compares your microphone against broadcast and streaming standards:</p>
-                        
-                        <table style="width: 100%; font-size: 0.9rem; border-collapse: collapse;">
-                            <tr style="border-bottom: 1px solid var(--border);">
-                                <td style="padding: 0.5rem 0;"><strong>Loudness (LUFS)</strong></td>
-                                <td style="padding: 0.5rem 0; text-align: right;">-16 to -14 LUFS for podcasts/streaming</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid var(--border);">
-                                <td style="padding: 0.5rem 0;"><strong>Peak Level</strong></td>
-                                <td style="padding: 0.5rem 0; text-align: right;">-6dB to -1dB (headroom)</td>
-                            </tr>
-                            <tr style="border-bottom: 1px solid var(--border);">
-                                <td style="padding: 0.5rem 0;"><strong>Noise Floor</strong></td>
-                                <td style="padding: 0.5rem 0; text-align: right;">Below -40dB when silent</td>
-                            </tr>
-                            <tr>
-                                <td style="padding: 0.5rem 0;"><strong>Signal-to-Noise</strong></td>
-                                <td style="padding: 0.5rem 0; text-align: right;">At least 20dB difference</td>
-                            </tr>
-                        </table>
-                    </div>
-                    
-                    <div class="info-box" style="margin-bottom: 1.5rem; background: var(--accent-light);">
-                        <h4 style="margin-bottom: 0.5rem;">📋 Three-step guided test</h4>
-                        <p style="color: var(--text-secondary); margin-bottom: 0.5rem;">You control when each step starts. The test includes:</p>
-                        <ol style="margin-left: 1.25rem; color: var(--text-secondary);">
-                            <li><strong>Silence test</strong> — We measure your background noise</li>
-                            <li><strong>Voice test</strong> — Read a passage aloud at normal volume</li>
-                            <li><strong>Results</strong> — See how you compare to broadcast standards</li>
-                        </ol>
-                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        We'll measure your background noise, then your voice, and compare to streaming standards.
+                    </p>
                     
                     <details style="margin-bottom: 1.5rem; font-size: 0.9rem;">
-                        <summary style="cursor: pointer; color: var(--accent); font-weight: 500;">💡 What are LUFS?</summary>
+                        <summary style="cursor: pointer; color: var(--accent); font-weight: 500;">ℹ️ About this test (LUFS, standards)</summary>
                         <div style="margin-top: 0.75rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px;">
-                            <p style="margin-bottom: 0.75rem;"><strong>LUFS (Loudness Units Full Scale)</strong> measures perceived loudness — how loud audio actually <em>sounds</em> to human ears, not just the peak level.</p>
-                            <p style="margin-bottom: 0.75rem;">Industry standards:</p>
+                            <p style="margin-bottom: 0.75rem;"><strong>LUFS (Loudness Units Full Scale)</strong> measures perceived loudness — how loud audio <em>sounds</em> to human ears.</p>
+                            <p style="margin-bottom: 0.75rem;"><strong>Industry targets:</strong></p>
                             <ul style="margin: 0 0 0.75rem 1.25rem; color: var(--text-secondary);">
                                 <li><strong>-14 LUFS</strong> — Spotify, YouTube, Apple Music</li>
-                                <li><strong>-16 LUFS</strong> — Podcasts (Apple Podcasts recommends)</li>
-                                <li><strong>-23 LUFS</strong> — Broadcast TV (EBU R128 standard)</li>
-                                <li><strong>-24 LUFS</strong> — US Broadcast (ATSC A/85)</li>
+                                <li><strong>-16 LUFS</strong> — Podcasts (Apple recommendation)</li>
+                                <li><strong>-23 LUFS</strong> — Broadcast TV (EBU R128)</li>
                             </ul>
-                            <p style="color: var(--text-secondary); font-size: 0.85rem;">For voice calls and streaming, -16 to -14 LUFS is ideal. Too quiet (below -20) and people strain to hear you. Too loud (above -10) and you'll sound harsh or distorted.</p>
+                            <p style="margin-bottom: 0.5rem;"><strong>We measure:</strong></p>
+                            <ul style="margin: 0 0 0 1.25rem; color: var(--text-secondary);">
+                                <li><strong>Noise floor</strong> — background noise when silent (target: below -40 dBFS)</li>
+                                <li><strong>Voice level</strong> — your speaking volume (target: -16 to -14 LUFS)</li>
+                                <li><strong>Peak level</strong> — loudest moment (target: -6 to -1 dBFS)</li>
+                                <li><strong>Signal-to-noise</strong> — voice vs noise ratio (target: >20 dB)</li>
+                            </ul>
                         </div>
                     </details>
                     
-                    <div class="info-box" style="margin-bottom: 1rem; padding: 1rem;">
-                        <div style="margin-bottom: 0.5rem;">
-                            <strong style="display: block; margin-bottom: 0.5rem;">🎤 Select Microphone</strong>
-                            <select id="quality-device-select" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; background: white;">
-                                <option value="">Click to load microphones...</option>
-                            </select>
-                            <button id="btn-refresh-devices" style="margin-top: 0.5rem; padding: 0.4rem 0.8rem; font-size: 0.8rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-muted); cursor: pointer;">
-                                🔄 Refresh device list
-                            </button>
-                        </div>
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Microphone</label>
+                        <select id="quality-device-select" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; background: white;">
+                            <option value="">Select microphone...</option>
+                        </select>
+                        <button id="btn-refresh-devices" style="margin-top: 0.5rem; padding: 0.4rem 0.8rem; font-size: 0.8rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-muted); cursor: pointer;">
+                            Refresh
+                        </button>
                     </div>
                     
-                    <div class="info-box" style="margin-bottom: 1.5rem; padding: 1rem;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <div>
-                                <strong style="display: block; margin-bottom: 0.25rem;">Auto Gain Control (AGC)</strong>
-                                <span style="font-size: 0.85rem; color: var(--text-secondary);">
-                                    Off = raw measurements • On = what apps typically hear
-                                </span>
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px;">
+                        <div>
+                            <strong>Auto Gain Control</strong>
+                            <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                                On (recommended) = what apps hear
                             </div>
-                            <label class="toggle-switch">
-                                <input type="checkbox" id="agc-toggle">
-                                <span class="toggle-slider"></span>
-                            </label>
                         </div>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="agc-toggle" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
                     </div>
                     
-                    <button id="btn-quality-start" class="btn btn-primary btn-large">
-                        📊 Begin Quality Analysis
+                    <button id="btn-quality-start" class="btn btn-primary btn-large" style="width: 100%;">
+                        Start Level Check
                     </button>
                 </div>
                 
                 <!-- Step 1: Silence -->
                 <div id="quality-step-silence" style="display: none;">
-                    <div id="quality-device-info" style="display: none; background: var(--bg-muted); padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.85rem;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
-                            <span>🎤</span>
-                            <strong>Using:</strong>
-                            <span id="quality-device-name" style="color: var(--accent);">—</span>
-                        </div>
-                        <div id="quality-device-settings" style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-muted);"></div>
+                    <div id="quality-device-info" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                        🎤 <span id="quality-device-name">—</span>
+                        <span id="quality-device-settings"></span>
                     </div>
                     
-                    <div class="status-card" style="background: #e3f2fd; margin-bottom: 1.5rem;">
-                        <span class="status-icon">🤫</span>
-                        <div class="status-text">
-                            <div class="status-title">Step 1: Measure Background Noise</div>
-                            <div class="status-detail">We'll record 5 seconds of silence to measure your room's noise floor.</div>
-                        </div>
-                    </div>
+                    <h3 style="margin-bottom: 0.5rem;">Step 1: Silence (5 seconds)</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        Stay quiet. We're measuring background noise.
+                    </p>
                     
-                    <div class="info-box" style="margin-bottom: 1.5rem;">
-                        <p><strong>Instructions:</strong></p>
-                        <ul style="margin: 0.5rem 0 0 1.25rem; color: var(--text-secondary);">
-                            <li>Stay quiet — don't speak or make sounds</li>
-                            <li>Don't move or touch your microphone</li>
-                            <li>Let any background noise (fans, AC, etc.) remain as normal</li>
-                        </ul>
-                    </div>
-                    
-                    <div class="visualizer-container" id="silence-visualizer" style="display: none;">
-                        <div class="visualizer-label">
-                            <strong>🔇 Noise Level</strong> — this should stay low
-                        </div>
+                    <div class="visualizer-container" id="silence-visualizer" style="display: none; margin-bottom: 1rem;">
                         <div class="level-bar-container">
                             <div id="silence-level-bar" class="level-bar"></div>
                             <span id="silence-level-text" class="level-text">0%</span>
                         </div>
                         <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
-                            <span>-60dB (silent)</span>
+                            <span>Silent</span>
                             <span id="silence-db-reading" style="font-weight: bold;">—</span>
-                            <span>0dB (loud)</span>
+                            <span>Loud</span>
                         </div>
-                        <div style="text-align: center; margin-top: 1rem; font-size: 1.5rem; font-weight: bold;" id="silence-countdown"></div>
+                        <div style="text-align: center; margin-top: 0.75rem; font-size: 1.25rem; font-weight: bold;" id="silence-countdown"></div>
                     </div>
                     
-                    <div id="silence-result" style="display: none; margin-top: 1rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span>Noise Floor:</span>
-                            <strong id="silence-final-reading" style="font-size: 1.25rem;">—</strong>
-                        </div>
+                    <div id="silence-result" style="display: none; margin-bottom: 1rem; padding: 0.75rem; background: var(--bg-muted); border-radius: 8px;">
+                        Noise Floor: <strong id="silence-final-reading">—</strong>
                     </div>
                     
-                    <button id="btn-start-silence" class="btn btn-primary btn-large">
-                        🎤 Start Silence Recording
+                    <button id="btn-start-silence" class="btn btn-primary btn-large" style="width: 100%;">
+                        Start Silence Recording
                     </button>
-                    <button id="btn-next-to-voice" class="btn btn-primary btn-large" style="display: none;">
-                        Next: Voice Test →
+                    <button id="btn-next-to-voice" class="btn btn-primary btn-large" style="display: none; width: 100%;">
+                        Continue to Voice Test →
                     </button>
                 </div>
                 
                 <!-- Step 2: Voice -->
                 <div id="quality-step-voice" style="display: none;">
-                    <div class="status-card" style="background: #fff3e0; margin-bottom: 1.5rem;">
-                        <span class="status-icon">🗣️</span>
-                        <div class="status-text">
-                            <div class="status-title">Step 2: Measure Your Voice</div>
-                            <div class="status-detail">Read the passage below aloud at your normal speaking volume.</div>
-                        </div>
+                    <h3 style="margin-bottom: 0.5rem;">Step 2: Voice (10 seconds)</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.9rem;">
+                        Read this passage at your normal speaking volume:
+                    </p>
+                    
+                    <blockquote style="background: #fffbf0; border-left: 4px solid #f0c040; padding: 1rem; margin: 0 0 1rem 0; font-style: italic; line-height: 1.6;">
+                        "The rainbow appears when sunlight shines through falling rain. 
+                        People look with awe at the brilliant colors stretching across the sky. 
+                        Vibrant reds blend gently into warm oranges and yellows, 
+                        while cool blues and deep purples fade softly at the edges.
+                        Some say a pot of gold waits at the end, 
+                        but no one has quite found it yet."
+                    </blockquote>
+                    
+                    <div id="voice-pre-start" style="margin-bottom: 1rem;">
+                        <button id="btn-start-voice" class="btn btn-primary btn-large" style="width: 100%;">
+                            🎤 Start Recording (10 seconds)
+                        </button>
                     </div>
                     
-                    <div class="info-box" style="margin-bottom: 1.5rem; background: #fffbf0; border: 2px solid #f0c040;">
-                        <h4 style="margin-bottom: 0.75rem;">📖 Read this aloud:</h4>
-                        <blockquote style="font-size: 1.1rem; line-height: 1.7; color: var(--text); margin: 0; padding: 0; font-style: italic;">
-                            "The rainbow appears when sunlight shines through falling rain. 
-                            People look with awe at the brilliant colors stretching across the sky. 
-                            Vibrant reds blend gently into warm oranges and yellows, 
-                            while cool blues and deep purples fade softly at the edges.
-                            <br><br>
-                            Some say a pot of gold waits at the end, 
-                            but no one has quite found it yet."
-                        </blockquote>
-                        <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-secondary);">
-                            This passage exercises vowels (a, e, i, o, u), consonants (b, p, s, r, l), and varied pitch. 
-                            Speak naturally as if talking to a friend across a table.
-                        </p>
-                    </div>
-                    
-                    <div class="visualizer-container" id="voice-visualizer" style="display: none;">
-                        <div class="visualizer-label">
-                            <strong>🎤 Voice Level</strong> — aim for the green zone
-                        </div>
+                    <div class="visualizer-container" id="voice-visualizer" style="display: none; margin-bottom: 1rem;">
                         <div class="level-bar-container" style="position: relative;">
-                            <!-- Target zone indicator -->
                             <div style="position: absolute; left: 50%; right: 10%; height: 100%; background: rgba(30, 142, 62, 0.15); border-left: 2px dashed #1e8e3e; border-right: 2px dashed #1e8e3e; pointer-events: none;"></div>
                             <div id="voice-level-bar" class="level-bar"></div>
                             <span id="voice-level-text" class="level-text">0%</span>
                         </div>
                         <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
-                            <span>Too quiet</span>
-                            <span style="color: #1e8e3e; font-weight: 500;">← Good range →</span>
-                            <span>Too loud</span>
+                            <span>Quiet</span>
+                            <span id="voice-db-reading" style="font-weight: bold;">—</span>
+                            <span>Loud</span>
                         </div>
-                        <div style="text-align: center; margin-top: 0.5rem;">
-                            <span id="voice-db-reading" style="font-weight: bold; font-size: 1.25rem;">—</span>
-                            <span id="voice-lufs-reading" style="margin-left: 1rem; font-weight: bold; font-size: 1.25rem; color: var(--accent);">—</span>
-                        </div>
-                        <div style="text-align: center; margin-top: 1rem; font-size: 1.5rem; font-weight: bold;" id="voice-countdown"></div>
+                        <div style="text-align: center; margin-top: 0.75rem; font-size: 1.25rem; font-weight: bold;" id="voice-countdown"></div>
                     </div>
                     
-                    <div id="voice-result" style="display: none; margin-top: 1rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px;">
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <span>Average Loudness:</span>
-                            <strong id="voice-lufs-final" style="font-size: 1.25rem;">—</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <span>Peak Level:</span>
-                            <strong id="voice-peak-final">—</strong>
-                        </div>
-                        <div style="display: flex; justify-content: space-between; align-items: center;">
-                            <span>Signal-to-Noise:</span>
-                            <strong id="voice-snr-final">—</strong>
-                        </div>
+                    <div id="voice-result" style="display: none; margin-bottom: 1rem; padding: 0.75rem; background: var(--bg-muted); border-radius: 8px;">
+                        Voice: <strong id="voice-lufs-final">—</strong> • Peak: <strong id="voice-peak-final">—</strong>
                     </div>
                     
-                    <button id="btn-start-voice" class="btn btn-primary btn-large">
-                        🎤 Start Voice Recording
-                    </button>
-                    <button id="btn-show-results" class="btn btn-primary btn-large" style="display: none;">
+                    <button id="btn-show-results" class="btn btn-primary btn-large" style="display: none; width: 100%;">
                         View Results →
                     </button>
                 </div>
                 
                 <div id="quality-results" style="display: none;"></div>
             </div>
-            
-            <button class="btn btn-secondary" onclick="window.MicCheck.showScreen('screen-select')">← Back to menu</button>
         </div>
 
         <!-- Screen 7: Detailed Results -->
         <div id="screen-details" class="screen">
+            <a href="#" class="back-link" onclick="window.MicCheck.goBack(); return false;">← Back</a>
+            
             <div class="card">
                 <div class="card-header">
                     <span class="card-icon">📋</span>
@@ -1084,8 +1019,6 @@
                     <!-- Populated by JS -->
                 </div>
             </div>
-            
-            <button class="btn btn-secondary" onclick="window.MicCheck.goBack()">← Back</button>
         </div>
 
         <footer>

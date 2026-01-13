@@ -138,40 +138,22 @@ export async function checkPermission() {
 }
 
 /**
- * Generate HTML for low volume warning (Firefox-specific)
+ * Generate HTML for low volume warning
  * @returns {string} HTML content
  */
 export function getLowVolumeWarningHtml() {
     return `
         <div class="info-box" style="margin-top: 1rem; background: #fff3cd; border: 1px solid #ffc107;">
-            <h4 style="margin-bottom: 0.5rem;">📢 Low volume detected</h4>
+            <h4 style="margin-bottom: 0.5rem;">📢 Volume seems low</h4>
             <p style="margin-bottom: 0.75rem;">
-                Firefox typically shows lower microphone levels than Chrome. 
-                <strong>This is normal</strong> — your mic is working, Firefox just doesn't boost the volume automatically.
+                Your mic is working, but the level is quite low. This might be normal, or your mic gain may need adjusting.
             </p>
-            
-            <div style="margin: 1rem 0; padding: 1rem; background: white; border-radius: 8px;">
-                <p style="margin-bottom: 0.75rem;"><strong>Try enabling Automatic Gain Control:</strong></p>
-                <button id="btn-try-agc" class="btn btn-primary" style="margin-bottom: 0.5rem;">
-                    🔊 Restart with Volume Boost
-                </button>
-                <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0;">
-                    This requests a new audio stream with AGC enabled. 
-                    It's a standard browser feature — no settings are modified, and it only affects this page.
-                </p>
-            </div>
-            
-            <details style="font-size: 0.9rem;">
-                <summary style="cursor: pointer; color: var(--accent);">Why does this happen?</summary>
-                <div style="margin-top: 0.5rem; padding-left: 1rem; border-left: 2px solid var(--border);">
-                    <p><strong>Chrome</strong> enables Automatic Gain Control (AGC) by default, which boosts quiet audio.</p>
-                    <p style="margin-top: 0.5rem;"><strong>Firefox</strong> is more conservative and respects your hardware's native levels.</p>
-                    <p style="margin-top: 0.5rem;">
-                        Your mic will still work fine in video calls — most apps apply their own gain.
-                        If a specific site has volume issues, that site should be requesting AGC in their code.
-                    </p>
-                </div>
-            </details>
+            <p>
+                <a href="#" id="link-to-level-check" style="color: var(--accent); font-weight: 500;">
+                    📊 Try Level Check →
+                </a>
+                for a detailed analysis with standards comparison.
+            </p>
         </div>
     `;
 }

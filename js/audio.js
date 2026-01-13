@@ -107,12 +107,19 @@ export async function initQualityAudio(agcEnabled = false, deviceId = '') {
         // Store device info for display
         qualityTestData.deviceId = settings.deviceId || 'unknown';
         qualityTestData.deviceLabel = audioTrack.label || 'Unknown Microphone';
+        
+        // Note: Browser reports whether AGC is applied, but actual implementation
+        // varies significantly between browsers, OS, and audio drivers.
+        // The "applied" value may not reflect actual audio processing.
         qualityTestData.appliedSettings = {
             sampleRate: settings.sampleRate,
             channelCount: settings.channelCount,
             autoGainControl: settings.autoGainControl,
             noiseSuppression: settings.noiseSuppression,
-            echoCancellation: settings.echoCancellation
+            echoCancellation: settings.echoCancellation,
+            // Track what we requested vs what was reported
+            agcRequested: agcEnabled,
+            agcReported: settings.autoGainControl
         };
         
         qualityTestData.audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -307,8 +314,10 @@ export async function populateDeviceList(selectElement) {
     if (!selectElement) return;
     
     try {
-        // First request permission to get full device list
+        // Request permission and get the default device info
         const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const defaultTrack = tempStream.getAudioTracks()[0];
+        const defaultDeviceId = defaultTrack?.getSettings()?.deviceId || '';
         tempStream.getTracks().forEach(t => t.stop());
         
         const devices = await navigator.mediaDevices.enumerateDevices();
@@ -325,6 +334,10 @@ export async function populateDeviceList(selectElement) {
             const option = document.createElement('option');
             option.value = device.deviceId;
             option.textContent = device.label || `Microphone ${index + 1}`;
+            // Auto-select the default device
+            if (device.deviceId === defaultDeviceId) {
+                option.selected = true;
+            }
             selectElement.appendChild(option);
         });
         
