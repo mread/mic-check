@@ -3,24 +3,43 @@
  * 
  * Contains reference standards for voice communication quality
  * and rating calculation functions.
+ * 
+ * IMPORTANT: Browser AGC typically targets -18 to -20 dBFS and includes
+ * a soft limiter that prevents clipping. This means:
+ * - With AGC ON: Focus on "is signal sufficient for AGC to work"
+ * - With AGC OFF: Broadcast standards apply for raw level assessment
  */
 
-// Reference standards for voice communication
+// Reference standards for voice communication (AGC OFF - raw levels)
 export const QUALITY_REFERENCE = {
-    // LUFS targets (perceived loudness)
+    // LUFS targets for raw signal (AGC OFF)
     lufs: { 
-        streaming: -14,     // Spotify, YouTube
-        podcast: -16,       // Apple Podcasts
+        streaming: -14,     // Spotify, YouTube target
+        podcast: -16,       // Apple Podcasts recommendation
         broadcast: -23,     // EBU R128
         min: -20,           // Too quiet below this
         max: -10            // Too loud above this
     },
-    // Peak level (dBFS)
+    // Peak level (dBFS) - only meaningful with AGC OFF
     peak: { min: -6, max: -1 },
-    // Noise floor (dBFS)
+    // Noise floor (dBFS) - measured with AGC OFF
     noiseFloor: { excellent: -50, good: -40, acceptable: -35 },
     // Signal-to-noise ratio (dB)
     snr: { excellent: 30, good: 20, acceptable: 12 }
+};
+
+// Standards when AGC is ON - different expectations
+// AGC normalizes to ~-20 dBFS and prevents clipping
+export const AGC_REFERENCE = {
+    // With AGC on, anything reaching -25 LUFS or better means mic is working
+    lufs: {
+        good: -25,          // AGC has enough signal to work with
+        acceptable: -35,    // AGC is struggling, something may be wrong
+        poor: -45           // AGC can't compensate - serious issue
+    },
+    // Peak is meaningless with AGC (limiter prevents clipping)
+    // Noise floor still matters but is also AGC-boosted during silence
+    noiseFloor: { excellent: -45, good: -35, acceptable: -30 }
 };
 
 /**
@@ -54,17 +73,9 @@ export function formatLufs(lufs) {
     return `${lufs.toFixed(1)} LUFS`;
 }
 
-/**
- * Simplified LUFS calculation from RMS
- * Real LUFS requires K-weighting and gating, but this approximation
- * using RMS correlates well for speech
- * @param {number} rms - RMS value (0 to 1)
- * @returns {number} Approximate LUFS
- */
-export function rmsToApproxLufs(rms) {
-    const dbfs = linearToDb(rms);
-    return dbfs;
-}
+// Note: LUFS calculation is now handled by js/lufs.js which implements
+// ITU-R BS.1770-4 with K-weighting and gating. The old rmsToApproxLufs
+// function has been removed as it was inaccurate (just returned dBFS).
 
 /**
  * Get a quality rating based on a value and reference thresholds

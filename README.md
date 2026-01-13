@@ -12,6 +12,7 @@ A free, privacy-first tool to test your microphone, understand browser permissio
 - **🔐 Privacy Check** — See what microphone access websites have and how to control it
 - **🌐 App Debugging** — Diagnose why your mic works on some sites but not others
 - **⚡ Quick Test** — Fast microphone test with audio level visualization
+- **📊 Level Check** — LUFS measurement per [ITU-R BS.1770](https://www.itu.int/rec/R-REC-BS.1770) (same standard used by Spotify, YouTube, and broadcast tools)
 
 ## Privacy
 

@@ -921,26 +921,33 @@
                 
                 <div id="quality-intro">
                     <p style="color: var(--text-secondary); margin-bottom: 1rem;">
-                        We'll measure your background noise, then your voice, and compare to streaming standards.
+                        <strong>Are people saying you're too quiet in calls?</strong> This test diagnoses common issues 
+                        like stereo misconfiguration, insufficient signal, and background noise.
                     </p>
                     
                     <details style="margin-bottom: 1.5rem; font-size: 0.9rem;">
-                        <summary style="cursor: pointer; color: var(--accent); font-weight: 500;">ℹ️ About this test (LUFS, standards)</summary>
+                        <summary style="cursor: pointer; color: var(--accent); font-weight: 500;">ℹ️ What this test does</summary>
                         <div style="margin-top: 0.75rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px;">
-                            <p style="margin-bottom: 0.75rem;"><strong>LUFS (Loudness Units Full Scale)</strong> measures perceived loudness — how loud audio <em>sounds</em> to human ears.</p>
-                            <p style="margin-bottom: 0.75rem;"><strong>Industry targets:</strong></p>
+                            <p style="margin-bottom: 0.75rem;"><strong>We check if your mic provides enough signal</strong> for browser apps to work with. 
+                            Most apps (Google Meet, Zoom web, Discord) use Auto Gain Control (AGC) which automatically adjusts your volume.</p>
+                            
+                            <p style="margin-bottom: 0.75rem;"><strong>Common issues we detect:</strong></p>
                             <ul style="margin: 0 0 0.75rem 1.25rem; color: var(--text-secondary);">
-                                <li><strong>-14 LUFS</strong> — Spotify, YouTube, Apple Music</li>
-                                <li><strong>-16 LUFS</strong> — Podcasts (Apple recommendation)</li>
-                                <li><strong>-23 LUFS</strong> — Broadcast TV (EBU R128)</li>
+                                <li><strong>Stereo misconfiguration</strong> — A mono mic set as stereo causes 50% volume loss in some browsers</li>
+                                <li><strong>Signal too weak</strong> — Even AGC can't compensate if gain is too low</li>
+                                <li><strong>Background noise</strong> — Makes it hard for others to hear you clearly</li>
                             </ul>
-                            <p style="margin-bottom: 0.5rem;"><strong>We measure:</strong></p>
-                            <ul style="margin: 0 0 0 1.25rem; color: var(--text-secondary);">
-                                <li><strong>Noise floor</strong> — background noise when silent (target: below -40 dBFS)</li>
-                                <li><strong>Voice level</strong> — your speaking volume (target: -16 to -14 LUFS)</li>
-                                <li><strong>Peak level</strong> — loudest moment (target: -6 to -1 dBFS)</li>
-                                <li><strong>Signal-to-noise</strong> — voice vs noise ratio (target: >20 dB)</li>
-                            </ul>
+                            
+                            <p style="margin-bottom: 0.75rem;"><strong>If issues are found:</strong> Our upcoming <em>Gain Staging</em> guide will help you 
+                            optimize your hardware and OS settings for the best results.</p>
+                            
+                            <p style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--text-muted);">
+                                <strong>For desktop apps:</strong> If you use Discord, OBS, or streaming software, try testing with AGC OFF 
+                                to measure your raw levels against broadcast standards (-14 to -16 LUFS).
+                            </p>
+                            <p style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--text-muted);">
+                                <strong>Technical note:</strong> We measure LUFS per <a href="https://www.itu.int/rec/R-REC-BS.1770" target="_blank" style="color: var(--accent);">ITU-R BS.1770-4</a> — the same standard used by Spotify, YouTube, and broadcast tools. This includes K-weighting filters (for perceptual accuracy), 400ms integration windows, and two-stage gating (to ignore silence). Algorithm structure informed by <a href="https://github.com/goepfert/loudness_adaption_demo" target="_blank" style="color: var(--accent);">goepfert/loudness_adaption_demo</a>.
+                            </p>
                         </div>
                     </details>
                     
@@ -956,13 +963,13 @@
                     
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px;">
                         <div>
-                            <strong>Auto Gain Control</strong>
-                            <div style="font-size: 0.85rem; color: var(--text-secondary);">
-                                On (recommended) = what apps hear
+                            <strong>Audio Processing</strong>
+                            <div id="agc-description" style="font-size: 0.85rem; color: var(--text-secondary);">
+                                On = AGC, noise suppression, echo cancellation (how browser apps hear you)
                             </div>
                         </div>
                         <label class="toggle-switch">
-                            <input type="checkbox" id="agc-toggle" checked>
+                            <input type="checkbox" id="agc-toggle" checked onchange="document.getElementById('agc-description').textContent = this.checked ? 'On = AGC, noise suppression, echo cancellation (how browser apps hear you)' : 'Off = raw microphone signal (for desktop apps, streaming)'">
                             <span class="toggle-slider"></span>
                         </label>
                     </div>

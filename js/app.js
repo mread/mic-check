@@ -10,7 +10,6 @@ import {
     linearToDb, 
     formatDb, 
     formatLufs, 
-    rmsToApproxLufs,
     getQualityRating 
 } from './standards.js';
 
@@ -23,8 +22,11 @@ import {
     getRmsFromAnalyser,
     sampleChannels,
     analyzeChannelBalance,
-    populateDeviceList
+    populateDeviceList,
+    collectKWeightedSamples
 } from './audio.js';
+
+import { calculateGatedLufs } from './lufs.js';
 
 import { 
     detectBrowser, 
@@ -856,10 +858,13 @@ async function startVoiceRecording() {
         const elapsed = Date.now() - startTime;
         const rms = getRmsFromAnalyser();
         const db = linearToDb(rms);
-        const lufs = rmsToApproxLufs(rms);
         
         qualityTestData.voiceSamples.push(rms);
         sampleChannels();
+        
+        // Collect K-weighted samples for ITU-R BS.1770 LUFS measurement
+        collectKWeightedSamples();
+        
         if (db > qualityTestData.peakVoice) {
             qualityTestData.peakVoice = db;
         }
@@ -883,11 +888,25 @@ async function startVoiceRecording() {
 }
 
 function finishVoiceRecording() {
-    const sorted = [...qualityTestData.voiceSamples].sort((a, b) => b - a);
-    const loudPortion = sorted.slice(0, Math.floor(sorted.length * 0.3));
-    const avgVoice = loudPortion.length > 0 ? loudPortion.reduce((a, b) => a + b, 0) / loudPortion.length : 0;
+    // Calculate LUFS using ITU-R BS.1770 gating algorithm
+    const lufsResult = calculateGatedLufs(qualityTestData.lufsCollector?.getBlocks() || []);
     
-    qualityTestData.voiceLufs = rmsToApproxLufs(avgVoice);
+    // Handle edge cases from LUFS calculation
+    if (lufsResult.error === 'insufficient-data') {
+        console.warn('LUFS calculation: insufficient data, need at least 400ms of audio');
+        qualityTestData.voiceLufs = -60; // Fallback to very quiet
+    } else if (lufsResult.error === 'no-voice-detected') {
+        console.warn('LUFS calculation: no voice detected above -70 LUFS threshold');
+        qualityTestData.voiceLufs = -60;
+    } else {
+        qualityTestData.voiceLufs = lufsResult.lufs;
+        if (lufsResult.warning === 'used-ungated') {
+            console.log('LUFS calculation: used ungated measurement (relative gate removed all blocks)');
+        }
+    }
+    
+    console.log('LUFS calculation result:', lufsResult);
+    
     qualityTestData.voicePeakDb = qualityTestData.peakVoice;
     qualityTestData.snr = qualityTestData.voiceLufs - qualityTestData.noiseFloorDb;
     

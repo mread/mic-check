@@ -6,6 +6,7 @@
  */
 
 import { linearToDb } from './standards.js';
+import { createKWeightingFilters, LufsBlockCollector } from './lufs.js';
 
 /**
  * State for quality test audio
@@ -22,6 +23,9 @@ export const qualityTestData = {
     stream: null,
     audioContext: null,
     analyser: null,
+    // K-weighted LUFS measurement (ITU-R BS.1770)
+    kWeightedAnalyser: null,
+    lufsCollector: null,
     channelAnalysers: [],
     channelSamples: [],
     channelBalance: null,
@@ -57,6 +61,10 @@ export function resetQualityTestData() {
     qualityTestData.contextSampleRate = null;
     qualityTestData.userAgcPreference = false;
     qualityTestData.selectedDeviceId = null;
+    // Reset LUFS collector
+    if (qualityTestData.lufsCollector) {
+        qualityTestData.lufsCollector.reset();
+    }
 }
 
 /**
@@ -134,11 +142,25 @@ export async function initQualityAudio(agcEnabled = false, deviceId = '') {
         
         const source = qualityTestData.audioContext.createMediaStreamSource(stream);
         
-        // Main analyser (for combined/mono signal)
+        // Main analyser (for combined/mono signal - used for dB display)
         qualityTestData.analyser = qualityTestData.audioContext.createAnalyser();
         qualityTestData.analyser.fftSize = 4096;
         qualityTestData.analyser.smoothingTimeConstant = 0.1;
         source.connect(qualityTestData.analyser);
+        
+        // K-weighted signal chain for LUFS measurement (ITU-R BS.1770)
+        const { preFilter, rlbFilter } = createKWeightingFilters(qualityTestData.audioContext);
+        source.connect(preFilter);
+        // rlbFilter is already connected to preFilter inside createKWeightingFilters
+        
+        // K-weighted analyser for LUFS block collection
+        qualityTestData.kWeightedAnalyser = qualityTestData.audioContext.createAnalyser();
+        qualityTestData.kWeightedAnalyser.fftSize = 4096;
+        qualityTestData.kWeightedAnalyser.smoothingTimeConstant = 0;  // No smoothing for accurate samples
+        rlbFilter.connect(qualityTestData.kWeightedAnalyser);
+        
+        // Initialize LUFS block collector with actual sample rate
+        qualityTestData.lufsCollector = new LufsBlockCollector(qualityTestData.contextSampleRate);
         
         // Set up per-channel analysis for stereo detection
         const channelCount = qualityTestData.appliedSettings?.channelCount || 1;
@@ -187,6 +209,8 @@ export function stopQualityAudio() {
         qualityTestData.audioContext = null;
     }
     qualityTestData.analyser = null;
+    qualityTestData.kWeightedAnalyser = null;
+    qualityTestData.lufsCollector = null;
     qualityTestData.channelAnalysers = [];
 }
 
@@ -221,6 +245,22 @@ export function sampleChannels() {
             qualityTestData.channelSamples[i].push(rms);
         }
     }
+}
+
+/**
+ * Collect K-weighted samples for LUFS measurement
+ * Call this during voice recording to accumulate samples into blocks
+ */
+export function collectKWeightedSamples() {
+    if (!qualityTestData.kWeightedAnalyser || !qualityTestData.lufsCollector) {
+        return;
+    }
+    
+    const bufferLength = qualityTestData.kWeightedAnalyser.fftSize;
+    const dataArray = new Float32Array(bufferLength);
+    qualityTestData.kWeightedAnalyser.getFloatTimeDomainData(dataArray);
+    
+    qualityTestData.lufsCollector.addSamples(dataArray);
 }
 
 /**

@@ -3,14 +3,14 @@
  * 
  * Handles generation and download of diagnostic reports.
  * 
- * FORMAT DOCUMENTATION (schema version 1.0):
+ * FORMAT DOCUMENTATION (schema version 1.1):
  * 
  * The diagnostics file is a JSON object with the following structure:
  * 
  * {
  *   "_schema": {
  *     "name": "mic-check-diagnostics",
- *     "version": "1.0",
+ *     "version": "1.1",
  *     "description": "Microphone quality analysis diagnostics from mic-check tool",
  *     "url": "https://github.com/mread/mic-check"
  *   },
@@ -45,7 +45,8 @@
  *       "reference": { excellent, good, acceptable } thresholds
  *     },
  *     "voiceLoudness": {
- *       "valueLufs": Perceived loudness in LUFS,
+ *       "valueLufs": Perceived loudness in LUFS (measured per ITU-R BS.1770-4
+ *                    with K-weighting and gating; compatible with EBU R128),
  *       "rating": "too-quiet" | "good" | "too-loud",
  *       "reference": { min, max, ideal } thresholds
  *     },
@@ -79,7 +80,7 @@ import { QUALITY_REFERENCE, getQualityRating } from './standards.js';
 import { qualityTestData } from './audio.js';
 import { detectBrowser } from './browser.js';
 
-export const TOOL_VERSION = '1.0.0';
+export const TOOL_VERSION = '1.1.0';
 
 /**
  * Generate a diagnostics report
@@ -120,9 +121,10 @@ export function generateDiagnosticsReport() {
     return {
         _schema: {
             name: "mic-check-diagnostics",
-            version: "1.0",
+            version: "1.1",
             description: "Microphone quality analysis diagnostics from mic-check tool",
-            url: "https://github.com/mread/mic-check"
+            url: "https://github.com/mread/mic-check",
+            lufsStandard: "ITU-R BS.1770-4"
         },
         generated: {
             timestamp: now.toISOString(),
