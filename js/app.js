@@ -161,6 +161,65 @@ async function runQuickTest() {
     }
 }
 
+/**
+ * Draw spectrogram - scrolling frequency visualization like Merlin Bird ID
+ * @param {CanvasRenderingContext2D} ctx - Canvas context
+ * @param {HTMLCanvasElement} canvas - Canvas element
+ * @param {Uint8Array} frequencyData - Frequency bin data from analyser
+ */
+function drawSpectrogram(ctx, canvas, frequencyData) {
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    // Shift existing image left by 1 pixel (slower scroll effect)
+    const imageData = ctx.getImageData(1, 0, width - 1, height);
+    ctx.putImageData(imageData, 0, 0);
+    
+    // Draw new column on the right
+    const barWidth = 1;
+    const numBins = frequencyData.length;
+    
+    // Only use lower half of frequency bins (more relevant for voice)
+    const usableBins = Math.floor(numBins * 0.5);
+    const binHeight = height / usableBins;
+    
+    for (let i = 0; i < usableBins; i++) {
+        const value = frequencyData[i];
+        
+        // Color based on intensity - dark blue/purple to cyan/green to yellow/white
+        let r, g, b;
+        if (value < 50) {
+            // Very quiet - dark blue/black
+            r = 0;
+            g = 0;
+            b = Math.floor(value * 1.5);
+        } else if (value < 100) {
+            // Quiet - blue to cyan
+            const t = (value - 50) / 50;
+            r = 0;
+            g = Math.floor(t * 150);
+            b = 80 + Math.floor(t * 100);
+        } else if (value < 180) {
+            // Medium - cyan to green to yellow
+            const t = (value - 100) / 80;
+            r = Math.floor(t * 255);
+            g = 150 + Math.floor(t * 105);
+            b = Math.floor(180 - t * 180);
+        } else {
+            // Loud - yellow to white
+            const t = (value - 180) / 75;
+            r = 255;
+            g = 255;
+            b = Math.floor(t * 255);
+        }
+        
+        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+        // Draw from bottom up (low frequencies at bottom)
+        const y = height - (i + 1) * binHeight;
+        ctx.fillRect(width - barWidth, y, barWidth, binHeight + 1);
+    }
+}
+
 async function startLevelMeter(barId, textId, resultId = 'quick-result') {
     if (!currentStream) {
         console.error('No stream available for level meter');
@@ -219,6 +278,19 @@ async function startLevelMeter(barId, textId, resultId = 'quick-result') {
         const bufferLength = analyser.fftSize;
         const dataArray = new Uint8Array(bufferLength);
         
+        // Spectrogram setup
+        const spectrogramCanvas = document.getElementById('spectrogram-canvas');
+        let spectrogramCtx = null;
+        let frequencyData = null;
+        if (spectrogramCanvas) {
+            spectrogramCtx = spectrogramCanvas.getContext('2d');
+            // Use frequency bins for spectrogram
+            frequencyData = new Uint8Array(analyser.frequencyBinCount);
+            // Clear canvas
+            spectrogramCtx.fillStyle = '#0a0a0a';
+            spectrogramCtx.fillRect(0, 0, spectrogramCanvas.width, spectrogramCanvas.height);
+        }
+        
         let maxLevel = 0;
         let frameCount = 0;
         
@@ -231,6 +303,12 @@ async function startLevelMeter(barId, textId, resultId = 'quick-result') {
             animationId = requestAnimationFrame(update);
             
             analyser.getByteTimeDomainData(dataArray);
+            
+            // Draw spectrogram if canvas exists
+            if (spectrogramCtx && frequencyData) {
+                analyser.getByteFrequencyData(frequencyData);
+                drawSpectrogram(spectrogramCtx, spectrogramCanvas, frequencyData);
+            }
             
             let sum = 0;
             for (let i = 0; i < bufferLength; i++) {
@@ -262,6 +340,14 @@ async function startLevelMeter(barId, textId, resultId = 'quick-result') {
             if (level > 5 && !audioDetected && resultEl) {
                 audioDetected = true;
                 resultEl.style.display = 'flex';
+            }
+            
+            // Hide low volume warning if volume becomes good
+            if (level > 15) {
+                const lowVolumeWarning = document.getElementById('low-volume-warning');
+                if (lowVolumeWarning) {
+                    lowVolumeWarning.remove();
+                }
             }
             
             if (frameCount === 300 && maxLevel > 0 && maxLevel < 15) {

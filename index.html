@@ -727,8 +727,24 @@
                 
                 <div id="quick-visualizer" style="display: none;">
                     <p style="margin-bottom: 0.75rem; color: var(--text-secondary);">
-                        Speak or make a sound — the bar should move:
+                        Speak or make a sound — watch the spectrogram and level meter:
                     </p>
+                    
+                    <!-- Spectrogram Canvas -->
+                    <div class="spectrogram-container" style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
+                        <div style="display: flex; flex-direction: column; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); padding: 2px 0;">
+                            <span>High</span>
+                            <span>Low</span>
+                        </div>
+                        <div style="flex: 1;">
+                            <canvas id="spectrogram-canvas" width="500" height="100" style="width: 100%; height: 100px; border-radius: 4px; background: #0a0a0a;"></canvas>
+                            <div style="text-align: center; font-size: 0.65rem; color: var(--text-muted); margin-top: 0.25rem;">
+                                ← time (scrolls left)
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Level Meter -->
                     <div class="visualizer-container">
                         <div class="level-bar-container">
                             <div id="quick-level-bar" class="level-bar"></div>

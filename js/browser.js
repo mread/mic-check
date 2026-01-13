@@ -143,7 +143,7 @@ export async function checkPermission() {
  */
 export function getLowVolumeWarningHtml() {
     return `
-        <div class="info-box" style="margin-top: 1rem; background: #fff3cd; border: 1px solid #ffc107;">
+        <div id="low-volume-warning" class="info-box" style="margin-top: 1rem; background: #fff3cd; border: 1px solid #ffc107;">
             <h4 style="margin-bottom: 0.5rem;">📢 Volume seems low</h4>
             <p style="margin-bottom: 0.75rem;">
                 Your mic is working, but the level is quite low. This might be normal, or your mic gain may need adjusting.
