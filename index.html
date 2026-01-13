@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mic Check — Browser Microphone Diagnostic Tool</title>
+    <!-- 
+        Mic Check - Browser Microphone Diagnostic Tool
+        Copyright (c) 2026 Matt Read
+        Licensed under the MIT License
+        https://github.com/mread/mic-check
+    -->
+    <meta name="description" content="Free tool to test your microphone, check browser permissions, and diagnose why your mic isn't working. No data collected, runs entirely in your browser.">
+    
+    <!-- Open Graph -->
+    <meta property="og:title" content="Mic Check — Is Your Microphone Working?">
+    <meta property="og:description" content="Free browser-based microphone diagnostic tool. Test your mic, check permissions, troubleshoot issues.">
+    <meta property="og:type" content="website">
+    
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎤</text></svg>">
+    
+    <style>
+        /* System font stacks - no external requests for privacy */
+        
+        :root {
+            --bg: #f8f9fa;
+            --bg-card: #ffffff;
+            --bg-muted: #f1f3f4;
+            --bg-elevated: #ffffff;
+            --text: #202124;
+            --text-secondary: #5f6368;
+            --text-muted: #9aa0a6;
+            --border: #dadce0;
+            --accent: #1a73e8;
+            --accent-light: #e8f0fe;
+            --problem: #d93025;
+            --problem-light: #fce8e6;
+            --ok: #1e8e3e;
+            --success: #1e8e3e;
+            --success-light: #e6f4ea;
+            --warning: #f9ab00;
+            --warning-light: #fef7e0;
+            --shadow: 0 1px 2px rgba(0,0,0,0.1);
+            --shadow-lg: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 2rem 1.5rem;
+        }
+        
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        
+        .logo {
+            font-size: 4rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+        }
+        
+        .tagline {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+        
+        .privacy-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--bg-muted);
+            color: var(--text-secondary);
+            padding: 0.5rem 1rem;
+            border-radius: 2rem;
+            font-size: 0.8rem;
+            font-weight: 500;
+            margin-top: 1rem;
+        }
+        
+        /* Cards */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+            box-shadow: var(--shadow);
+        }
+        
+        .card-header {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .card-icon {
+            font-size: 2rem;
+        }
+        
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+        
+        .card-subtitle {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        
+        /* Homepage Layout */
+        .home-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+            align-items: start;
+        }
+        
+        .home-primary {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        .home-secondary {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+        
+        @media (max-width: 768px) {
+            .home-grid {
+                grid-template-columns: 1fr;
+            }
+            .home-secondary {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Journey Cards */
+        .journey-card {
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: left;
+        }
+        
+        .journey-card:hover {
+            border-color: var(--accent);
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-2px);
+        }
+        
+        .journey-card.featured {
+            border-color: var(--accent);
+            background: var(--accent-light);
+        }
+        
+        .journey-icon {
+            font-size: 1.75rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .journey-title {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        
+        .journey-desc {
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+        }
+        
+        /* Compact primary action */
+        .primary-action {
+            background: var(--bg-card);
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        
+        .quality-action {
+            background: linear-gradient(135deg, #e8f0fe 0%, #f3e5f5 100%);
+            border: 2px solid var(--accent);
+        }
+        
+        /* Buttons */
+        .btn {
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 600;
+            padding: 0.875rem 1.5rem;
+            border: none;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+        
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            filter: brightness(1.1);
+            transform: translateY(-1px);
+        }
+        
+        .btn-secondary {
+            background: var(--bg-elevated);
+            color: var(--text);
+            border: 1px solid var(--border);
+        }
+        
+        .btn-secondary:hover {
+            border-color: var(--accent);
+        }
+        
+        .btn-large {
+            width: 100%;
+            padding: 1.25rem 2rem;
+            font-size: 1.1rem;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .btn-group {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+        
+        /* Status Indicators */
+        .status-card {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            padding: 1rem 1.25rem;
+            border-radius: 12px;
+            margin: 1rem 0;
+            background: var(--bg-muted);
+        }
+        
+        .status-card.success {
+            background: #e6f4ea;
+        }
+        
+        .status-card.problem {
+            background: var(--problem-light);
+        }
+        
+        /* Legacy classes for compatibility */
+        .status-card.warning { background: var(--problem-light); }
+        .status-card.error { background: var(--problem-light); }
+        .status-card.info { background: var(--accent-light); }
+        
+        .status-icon {
+            font-size: 1.5rem;
+            flex-shrink: 0;
+        }
+        
+        .status-text {
+            flex: 1;
+        }
+        
+        .status-title {
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+        }
+        
+        .status-detail {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        
+        /* Visualizer */
+        .visualizer-container {
+            background: var(--bg-elevated);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin: 1rem 0;
+        }
+        
+        .visualizer-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+        
+        .level-bar-container {
+            height: 48px;
+            background: #e8eaed;
+            border-radius: 8px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .level-bar {
+            height: 100%;
+            background: linear-gradient(90deg, #22c55e, #3b82f6, #8b5cf6);
+            border-radius: 8px;
+            transition: width 0.05s ease;
+            width: 0%;
+        }
+        
+        .level-text {
+            position: absolute;
+            right: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text);
+        }
+        
+        /* Device List */
+        .device-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 1rem;
+            background: var(--bg-elevated);
+            border-radius: 12px;
+            margin: 0.5rem 0;
+        }
+        
+        .device-item.active {
+            background: var(--success-light);
+            border: 1px solid var(--success);
+        }
+        
+        .device-name {
+            font-weight: 500;
+        }
+        
+        .device-id {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+        }
+        
+        /* Info Sections */
+        .info-box {
+            background: var(--bg-elevated);
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            margin: 1rem 0;
+        }
+        
+        .info-box h4 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .info-box p, .info-box ul {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+        
+        .info-box ul {
+            margin-left: 1.25rem;
+        }
+        
+        .info-box li {
+            margin: 0.25rem 0;
+        }
+        
+        /* Progress Steps */
+        .steps {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .step {
+            flex: 1;
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+        }
+        
+        .step.active {
+            background: var(--accent);
+        }
+        
+        .step.complete {
+            background: var(--success);
+        }
+        
+        /* Privacy Section */
+        .privacy-section {
+            background: var(--bg-muted);
+            border-radius: 12px;
+            padding: 1rem 1.25rem;
+            margin: 1.5rem 0;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        
+        .privacy-section p {
+            margin: 0;
+            line-height: 1.7;
+        }
+        
+        /* Collapsible */
+        .collapsible {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            margin: 1rem 0;
+        }
+        
+        .collapsible-header {
+            padding: 1rem;
+            background: var(--bg-elevated);
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            font-weight: 500;
+        }
+        
+        .collapsible-header:hover {
+            background: var(--border);
+        }
+        
+        .collapsible-content {
+            padding: 1rem;
+            display: none;
+        }
+        
+        .collapsible.open .collapsible-content {
+            display: block;
+        }
+        
+        .collapsible-arrow {
+            transition: transform 0.2s;
+        }
+        
+        .collapsible.open .collapsible-arrow {
+            transform: rotate(180deg);
+        }
+        
+        /* Screens */
+        .screen {
+            display: none;
+        }
+        
+        .screen.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        /* Table */
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        
+        .info-table th, .info-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .info-table th {
+            font-weight: 600;
+            background: var(--bg-elevated);
+        }
+        
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        
+        footer a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+        
+        /* Responsive */
+        @media (max-width: 600px) {
+            h1 {
+                font-size: 1.75rem;
+            }
+            
+            .container {
+                padding: 1rem;
+            }
+            
+            .btn-group {
+                flex-direction: column;
+            }
+        }
+        
+        /* Toggle Switch */
+        .toggle-switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 28px;
+            flex-shrink: 0;
+        }
+        
+        .toggle-switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+        
+        .toggle-slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: #ccc;
+            transition: 0.3s;
+            border-radius: 28px;
+        }
+        
+        .toggle-slider:before {
+            position: absolute;
+            content: "";
+            height: 22px;
+            width: 22px;
+            left: 3px;
+            bottom: 3px;
+            background-color: white;
+            transition: 0.3s;
+            border-radius: 50%;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        
+        .toggle-switch input:checked + .toggle-slider {
+            background-color: var(--accent);
+        }
+        
+        .toggle-switch input:checked + .toggle-slider:before {
+            transform: translateX(22px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <div class="logo">🎤</div>
+            <h1>Mic Check</h1>
+            <p class="tagline">Browser Microphone Diagnostic Tool</p>
+            <div class="privacy-badge">
+                🔒 100% Private — No data leaves your browser
+            </div>
+        </header>
+
+        <!-- Screen 1: Journey Selection -->
+        <div id="screen-select" class="screen active">
+            <div class="home-grid">
+                <!-- Left: Primary Actions -->
+                <div class="home-primary">
+                    <!-- Quick Test -->
+                    <div class="primary-action">
+                        <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🎤</div>
+                        <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem;">Quick Microphone Test</h2>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.9rem;">
+                            Check if your mic is working
+                        </p>
+                        <button id="btn-home-test" class="btn btn-primary" style="width: 100%;">
+                            Start Test
+                        </button>
+                    </div>
+                    
+                    <!-- Quality Analysis -->
+                    <div class="primary-action quality-action">
+                        <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">📊</div>
+                        <h2 style="font-size: 1.25rem; margin-bottom: 0.5rem;">Quality Analysis</h2>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.9rem;">
+                            Will people actually hear you clearly?
+                        </p>
+                        <button id="btn-home-quality" class="btn btn-primary" style="width: 100%;">
+                            Analyze Quality
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Right: Secondary Options -->
+                <div class="home-secondary">
+                    <div class="journey-card" data-journey="troubleshoot">
+                        <div class="journey-icon">🔧</div>
+                        <div class="journey-title">Mic not working?</div>
+                        <div class="journey-desc">Troubleshooting guide</div>
+                    </div>
+                    
+                    <div class="journey-card" data-journey="privacy">
+                        <div class="journey-icon">🔐</div>
+                        <div class="journey-title">Privacy check</div>
+                        <div class="journey-desc">Is my browser listening?</div>
+                    </div>
+                    
+                    <div class="journey-card" data-journey="app-debug">
+                        <div class="journey-icon">🌐</div>
+                        <div class="journey-title">Site-specific issues</div>
+                        <div class="journey-desc">Works here, not there?</div>
+                    </div>
+                    
+                    <div class="journey-card" style="display: flex; align-items: center; justify-content: center; background: var(--bg-muted); border-style: dashed;">
+                        <a href="https://github.com/mread/mic-check" target="_blank" rel="noopener noreferrer" style="text-decoration: none; color: var(--text-muted); text-align: center; font-size: 0.85rem;">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">💻</div>
+                            <div>View source</div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="privacy-section" style="margin-top: 1rem;">
+                <p style="font-size: 0.8rem;">
+                    🔒 <strong>100% Private:</strong> No audio recorded. No data sent. No cookies.
+                </p>
+            </div>
+        </div>
+
+        <!-- Screen 2: Quick Test -->
+        <div id="screen-quick-test" class="screen">
+            <div class="steps">
+                <div class="step active"></div>
+                <div class="step"></div>
+                <div class="step"></div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">⚡</span>
+                    <div>
+                        <div class="card-title">Quick Microphone Test</div>
+                        <div class="card-subtitle">Click the button below to test your microphone</div>
+                    </div>
+                </div>
+                
+                <div id="quick-test-status"></div>
+                
+                <button id="btn-quick-test" class="btn btn-primary btn-large">
+                    🎤 Start Microphone Test
+                </button>
+                
+                <div id="quick-visualizer" style="display: none;">
+                    <div class="visualizer-container">
+                        <div class="visualizer-label">
+                            <strong>🎤 Audio Level</strong> — speak or make noise, the bar should move
+                        </div>
+                        <div class="level-bar-container">
+                            <div id="quick-level-bar" class="level-bar"></div>
+                            <span id="quick-level-text" class="level-text">0%</span>
+                        </div>
+                    </div>
+                    
+                    <div id="quick-result" class="status-card success" style="display: none;">
+                        <span class="status-icon">✅</span>
+                        <div class="status-text">
+                            <div class="status-title">Your microphone is working!</div>
+                            <div class="status-detail">We detected audio input.</div>
+                        </div>
+                    </div>
+                    
+                    <button id="btn-quick-stop" class="btn btn-secondary" style="margin-top: 1rem;">
+                        ⏹️ Stop Test
+                    </button>
+                </div>
+            </div>
+            
+            <button class="btn btn-secondary" onclick="window.MicCheck.showScreen('screen-select')">← Back to menu</button>
+        </div>
+
+        <!-- Screen 3: Troubleshoot -->
+        <div id="screen-troubleshoot" class="screen">
+            <div class="steps">
+                <div id="ts-step-1" class="step active"></div>
+                <div id="ts-step-2" class="step"></div>
+                <div id="ts-step-3" class="step"></div>
+                <div id="ts-step-4" class="step"></div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">🔧</span>
+                    <div>
+                        <div class="card-title">Microphone Troubleshooter</div>
+                        <div class="card-subtitle" id="ts-subtitle">Let's figure out what's going on</div>
+                    </div>
+                </div>
+                
+                <div id="troubleshoot-content">
+                    <!-- Step 1: Check browser support -->
+                    <div id="ts-check-support">
+                        <p style="margin-bottom: 1rem;">First, let's check if your browser supports microphone access...</p>
+                        <button id="btn-ts-check-support" class="btn btn-primary btn-large">
+                            🔍 Check Browser Support
+                        </button>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="btn btn-secondary" onclick="window.MicCheck.showScreen('screen-select')">← Back to menu</button>
+        </div>
+
+        <!-- Screen 4: Privacy Check -->
+        <div id="screen-privacy" class="screen">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">🔐</span>
+                    <div>
+                        <div class="card-title">Browser Microphone Privacy Check</div>
+                        <div class="card-subtitle">Understanding what your browser exposes</div>
+                    </div>
+                </div>
+                
+                <div id="privacy-content">
+                    <div id="privacy-permission-status"></div>
+                    
+                    <button id="btn-privacy-check" class="btn btn-primary btn-large">
+                        🔍 Check Current Permission Status
+                    </button>
+                    
+                    <div id="privacy-results" style="display: none;">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">📚</span>
+                    <div>
+                        <div class="card-title">Understanding Microphone Permissions</div>
+                    </div>
+                </div>
+                
+                <div class="info-box">
+                    <h4>🟢 What "Granted" means</h4>
+                    <p>This website can access your microphone <em>when you're on this page</em>. Audio is only captured when a page actively requests it — permission alone doesn't enable listening.</p>
+                </div>
+                
+                <div class="info-box">
+                    <h4>🟡 What "Prompt" means</h4>
+                    <p>The browser will ask you before any website can access your mic. This is the default, privacy-respecting state.</p>
+                </div>
+                
+                <div class="info-box">
+                    <h4>🔴 What "Denied" means</h4>
+                    <p>You've blocked microphone access for this site. No website code can access your mic until you change this setting.</p>
+                </div>
+                
+                <div class="collapsible" id="collapse-reset">
+                    <div class="collapsible-header" tabindex="0" role="button" aria-expanded="false" aria-controls="collapse-reset-content" onclick="window.MicCheck.toggleCollapsible('collapse-reset', this)" onkeydown="window.MicCheck.handleCollapsibleKeydown(event, 'collapse-reset', this)">
+                        <span>🔄 How to reset permissions for any website</span>
+                        <span class="collapsible-arrow">▼</span>
+                    </div>
+                    <div class="collapsible-content" id="collapse-reset-content">
+                        <div id="reset-instructions">
+                            <!-- Populated based on browser -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <button class="btn btn-secondary" onclick="window.MicCheck.showScreen('screen-select')">← Back to menu</button>
+        </div>
+
+        <!-- Screen 5: App-specific Debug -->
+        <div id="screen-app-debug" class="screen">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">🌐</span>
+                    <div>
+                        <div class="card-title">Website-Specific Microphone Issues</div>
+                        <div class="card-subtitle">Your mic works here but not on another site? Let's diagnose.</div>
+                    </div>
+                </div>
+                
+                <div id="app-debug-content">
+                    <p style="margin-bottom: 1.5rem;">We'll run a full diagnostic to help you figure out why a specific website can't access your microphone.</p>
+                    
+                    <button id="btn-app-debug-start" class="btn btn-primary btn-large">
+                        🔬 Run Full Diagnostic
+                    </button>
+                    
+                    <div id="app-debug-results" style="display: none;"></div>
+                </div>
+            </div>
+            
+            <button class="btn btn-secondary" onclick="window.MicCheck.showScreen('screen-select')">← Back to menu</button>
+        </div>
+
+        <!-- Screen 6: Quality Analysis -->
+        <div id="screen-quality" class="screen">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">📊</span>
+                    <div>
+                        <div class="card-title">Microphone Quality Analysis</div>
+                        <div class="card-subtitle">Will people actually hear you clearly?</div>
+                    </div>
+                </div>
+                
+                <div id="quality-intro">
+                    <div class="info-box" style="margin-bottom: 1.5rem;">
+                        <h4 style="margin-bottom: 0.75rem;">🎯 What we'll measure</h4>
+                        <p style="margin-bottom: 1rem;">This test compares your microphone against broadcast and streaming standards:</p>
+                        
+                        <table style="width: 100%; font-size: 0.9rem; border-collapse: collapse;">
+                            <tr style="border-bottom: 1px solid var(--border);">
+                                <td style="padding: 0.5rem 0;"><strong>Loudness (LUFS)</strong></td>
+                                <td style="padding: 0.5rem 0; text-align: right;">-16 to -14 LUFS for podcasts/streaming</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border);">
+                                <td style="padding: 0.5rem 0;"><strong>Peak Level</strong></td>
+                                <td style="padding: 0.5rem 0; text-align: right;">-6dB to -1dB (headroom)</td>
+                            </tr>
+                            <tr style="border-bottom: 1px solid var(--border);">
+                                <td style="padding: 0.5rem 0;"><strong>Noise Floor</strong></td>
+                                <td style="padding: 0.5rem 0; text-align: right;">Below -40dB when silent</td>
+                            </tr>
+                            <tr>
+                                <td style="padding: 0.5rem 0;"><strong>Signal-to-Noise</strong></td>
+                                <td style="padding: 0.5rem 0; text-align: right;">At least 20dB difference</td>
+                            </tr>
+                        </table>
+                    </div>
+                    
+                    <div class="info-box" style="margin-bottom: 1.5rem; background: var(--accent-light);">
+                        <h4 style="margin-bottom: 0.5rem;">📋 Three-step guided test</h4>
+                        <p style="color: var(--text-secondary); margin-bottom: 0.5rem;">You control when each step starts. The test includes:</p>
+                        <ol style="margin-left: 1.25rem; color: var(--text-secondary);">
+                            <li><strong>Silence test</strong> — We measure your background noise</li>
+                            <li><strong>Voice test</strong> — Read a passage aloud at normal volume</li>
+                            <li><strong>Results</strong> — See how you compare to broadcast standards</li>
+                        </ol>
+                    </div>
+                    
+                    <details style="margin-bottom: 1.5rem; font-size: 0.9rem;">
+                        <summary style="cursor: pointer; color: var(--accent); font-weight: 500;">💡 What are LUFS?</summary>
+                        <div style="margin-top: 0.75rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px;">
+                            <p style="margin-bottom: 0.75rem;"><strong>LUFS (Loudness Units Full Scale)</strong> measures perceived loudness — how loud audio actually <em>sounds</em> to human ears, not just the peak level.</p>
+                            <p style="margin-bottom: 0.75rem;">Industry standards:</p>
+                            <ul style="margin: 0 0 0.75rem 1.25rem; color: var(--text-secondary);">
+                                <li><strong>-14 LUFS</strong> — Spotify, YouTube, Apple Music</li>
+                                <li><strong>-16 LUFS</strong> — Podcasts (Apple Podcasts recommends)</li>
+                                <li><strong>-23 LUFS</strong> — Broadcast TV (EBU R128 standard)</li>
+                                <li><strong>-24 LUFS</strong> — US Broadcast (ATSC A/85)</li>
+                            </ul>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem;">For voice calls and streaming, -16 to -14 LUFS is ideal. Too quiet (below -20) and people strain to hear you. Too loud (above -10) and you'll sound harsh or distorted.</p>
+                        </div>
+                    </details>
+                    
+                    <div class="info-box" style="margin-bottom: 1rem; padding: 1rem;">
+                        <div style="margin-bottom: 0.5rem;">
+                            <strong style="display: block; margin-bottom: 0.5rem;">🎤 Select Microphone</strong>
+                            <select id="quality-device-select" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; background: white;">
+                                <option value="">Click to load microphones...</option>
+                            </select>
+                            <button id="btn-refresh-devices" style="margin-top: 0.5rem; padding: 0.4rem 0.8rem; font-size: 0.8rem; border: 1px solid var(--border); border-radius: 4px; background: var(--bg-muted); cursor: pointer;">
+                                🔄 Refresh device list
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div class="info-box" style="margin-bottom: 1.5rem; padding: 1rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong style="display: block; margin-bottom: 0.25rem;">Auto Gain Control (AGC)</strong>
+                                <span style="font-size: 0.85rem; color: var(--text-secondary);">
+                                    Off = raw measurements • On = what apps typically hear
+                                </span>
+                            </div>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="agc-toggle">
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <button id="btn-quality-start" class="btn btn-primary btn-large">
+                        📊 Begin Quality Analysis
+                    </button>
+                </div>
+                
+                <!-- Step 1: Silence -->
+                <div id="quality-step-silence" style="display: none;">
+                    <div id="quality-device-info" style="display: none; background: var(--bg-muted); padding: 0.75rem 1rem; border-radius: 8px; margin-bottom: 1rem; font-size: 0.85rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                            <span>🎤</span>
+                            <strong>Using:</strong>
+                            <span id="quality-device-name" style="color: var(--accent);">—</span>
+                        </div>
+                        <div id="quality-device-settings" style="margin-top: 0.5rem; font-size: 0.8rem; color: var(--text-muted);"></div>
+                    </div>
+                    
+                    <div class="status-card" style="background: #e3f2fd; margin-bottom: 1.5rem;">
+                        <span class="status-icon">🤫</span>
+                        <div class="status-text">
+                            <div class="status-title">Step 1: Measure Background Noise</div>
+                            <div class="status-detail">We'll record 5 seconds of silence to measure your room's noise floor.</div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-box" style="margin-bottom: 1.5rem;">
+                        <p><strong>Instructions:</strong></p>
+                        <ul style="margin: 0.5rem 0 0 1.25rem; color: var(--text-secondary);">
+                            <li>Stay quiet — don't speak or make sounds</li>
+                            <li>Don't move or touch your microphone</li>
+                            <li>Let any background noise (fans, AC, etc.) remain as normal</li>
+                        </ul>
+                    </div>
+                    
+                    <div class="visualizer-container" id="silence-visualizer" style="display: none;">
+                        <div class="visualizer-label">
+                            <strong>🔇 Noise Level</strong> — this should stay low
+                        </div>
+                        <div class="level-bar-container">
+                            <div id="silence-level-bar" class="level-bar"></div>
+                            <span id="silence-level-text" class="level-text">0%</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
+                            <span>-60dB (silent)</span>
+                            <span id="silence-db-reading" style="font-weight: bold;">—</span>
+                            <span>0dB (loud)</span>
+                        </div>
+                        <div style="text-align: center; margin-top: 1rem; font-size: 1.5rem; font-weight: bold;" id="silence-countdown"></div>
+                    </div>
+                    
+                    <div id="silence-result" style="display: none; margin-top: 1rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>Noise Floor:</span>
+                            <strong id="silence-final-reading" style="font-size: 1.25rem;">—</strong>
+                        </div>
+                    </div>
+                    
+                    <button id="btn-start-silence" class="btn btn-primary btn-large">
+                        🎤 Start Silence Recording
+                    </button>
+                    <button id="btn-next-to-voice" class="btn btn-primary btn-large" style="display: none;">
+                        Next: Voice Test →
+                    </button>
+                </div>
+                
+                <!-- Step 2: Voice -->
+                <div id="quality-step-voice" style="display: none;">
+                    <div class="status-card" style="background: #fff3e0; margin-bottom: 1.5rem;">
+                        <span class="status-icon">🗣️</span>
+                        <div class="status-text">
+                            <div class="status-title">Step 2: Measure Your Voice</div>
+                            <div class="status-detail">Read the passage below aloud at your normal speaking volume.</div>
+                        </div>
+                    </div>
+                    
+                    <div class="info-box" style="margin-bottom: 1.5rem; background: #fffbf0; border: 2px solid #f0c040;">
+                        <h4 style="margin-bottom: 0.75rem;">📖 Read this aloud:</h4>
+                        <blockquote style="font-size: 1.1rem; line-height: 1.7; color: var(--text); margin: 0; padding: 0; font-style: italic;">
+                            "The rainbow appears when sunlight shines through falling rain. 
+                            People look with awe at the brilliant colors stretching across the sky. 
+                            Vibrant reds blend gently into warm oranges and yellows, 
+                            while cool blues and deep purples fade softly at the edges.
+                            <br><br>
+                            Some say a pot of gold waits at the end, 
+                            but no one has quite found it yet."
+                        </blockquote>
+                        <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-secondary);">
+                            This passage exercises vowels (a, e, i, o, u), consonants (b, p, s, r, l), and varied pitch. 
+                            Speak naturally as if talking to a friend across a table.
+                        </p>
+                    </div>
+                    
+                    <div class="visualizer-container" id="voice-visualizer" style="display: none;">
+                        <div class="visualizer-label">
+                            <strong>🎤 Voice Level</strong> — aim for the green zone
+                        </div>
+                        <div class="level-bar-container" style="position: relative;">
+                            <!-- Target zone indicator -->
+                            <div style="position: absolute; left: 50%; right: 10%; height: 100%; background: rgba(30, 142, 62, 0.15); border-left: 2px dashed #1e8e3e; border-right: 2px dashed #1e8e3e; pointer-events: none;"></div>
+                            <div id="voice-level-bar" class="level-bar"></div>
+                            <span id="voice-level-text" class="level-text">0%</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
+                            <span>Too quiet</span>
+                            <span style="color: #1e8e3e; font-weight: 500;">← Good range →</span>
+                            <span>Too loud</span>
+                        </div>
+                        <div style="text-align: center; margin-top: 0.5rem;">
+                            <span id="voice-db-reading" style="font-weight: bold; font-size: 1.25rem;">—</span>
+                            <span id="voice-lufs-reading" style="margin-left: 1rem; font-weight: bold; font-size: 1.25rem; color: var(--accent);">—</span>
+                        </div>
+                        <div style="text-align: center; margin-top: 1rem; font-size: 1.5rem; font-weight: bold;" id="voice-countdown"></div>
+                    </div>
+                    
+                    <div id="voice-result" style="display: none; margin-top: 1rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <span>Average Loudness:</span>
+                            <strong id="voice-lufs-final" style="font-size: 1.25rem;">—</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <span>Peak Level:</span>
+                            <strong id="voice-peak-final">—</strong>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <span>Signal-to-Noise:</span>
+                            <strong id="voice-snr-final">—</strong>
+                        </div>
+                    </div>
+                    
+                    <button id="btn-start-voice" class="btn btn-primary btn-large">
+                        🎤 Start Voice Recording
+                    </button>
+                    <button id="btn-show-results" class="btn btn-primary btn-large" style="display: none;">
+                        View Results →
+                    </button>
+                </div>
+                
+                <div id="quality-results" style="display: none;"></div>
+            </div>
+            
+            <button class="btn btn-secondary" onclick="window.MicCheck.showScreen('screen-select')">← Back to menu</button>
+        </div>
+
+        <!-- Screen 7: Detailed Results -->
+        <div id="screen-details" class="screen">
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">📋</span>
+                    <div>
+                        <div class="card-title">Detailed Technical Information</div>
+                        <div class="card-subtitle">What your browser exposes to websites</div>
+                    </div>
+                </div>
+                
+                <div id="details-content">
+                    <!-- Populated by JS -->
+                </div>
+            </div>
+            
+            <button class="btn btn-secondary" onclick="window.MicCheck.goBack()">← Back</button>
+        </div>
+
+        <footer>
+            <p>Mic Check — A free, open-source tool</p>
+            <p>No data is collected. Everything runs in your browser.</p>
+            <p style="margin-top: 0.5rem;">
+                <a href="https://github.com/mread/mic-check" target="_blank" rel="noopener noreferrer">GitHub</a>
+                · 
+                <a href="https://github.com/mread/mic-check/blob/main/LICENSE" target="_blank" rel="noopener noreferrer">MIT License</a>
+            </p>
+        </footer>
+    </div>
+
+
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>
