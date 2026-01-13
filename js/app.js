@@ -133,6 +133,21 @@ async function runQuickTest() {
         btnEl.style.display = 'none';
         visualizerEl.style.display = 'block';
         statusEl.innerHTML = ''; // Clear the "requesting" status - meter speaks for itself
+        
+        // Show AGC status indicator
+        const agcStatusEl = document.getElementById('quick-agc-status');
+        if (agcStatusEl) {
+            // Check actual AGC status from the track settings
+            const track = currentStream.getAudioTracks()[0];
+            const settings = track?.getSettings() || {};
+            const agcOn = settings.autoGainControl !== false; // Default to true if not specified
+            
+            agcStatusEl.style.display = 'flex';
+            agcStatusEl.className = `agc-status ${agcOn ? 'agc-on' : 'agc-off'}`;
+            document.getElementById('quick-agc-icon').textContent = agcOn ? '🔊' : '🔇';
+            document.getElementById('quick-agc-text').textContent = agcOn ? 'AGC: On' : 'AGC: Off';
+        }
+        
         await startLevelMeter('quick-level-bar', 'quick-level-text');
     } else {
         let message = 'Unknown error';
@@ -371,6 +386,10 @@ function stopQuickTest() {
     document.getElementById('quick-level-bar').style.clipPath = 'inset(0 100% 0 0)';
     document.getElementById('quick-level-text').textContent = '0%';
     document.getElementById('quick-test-status').innerHTML = '';
+    
+    // Hide AGC status indicator
+    const agcStatusEl = document.getElementById('quick-agc-status');
+    if (agcStatusEl) agcStatusEl.style.display = 'none';
 }
 
 // ============================================
@@ -680,11 +699,17 @@ async function startSilenceRecording() {
     
     document.getElementById('silence-visualizer').style.display = 'block';
     
-    const agcEnabled = document.getElementById('agc-toggle')?.checked || false;
+    // Store user's AGC preference for voice phase, but always use AGC OFF for silence
+    // This gives us the true noise floor, not the AGC-boosted noise floor
+    const userAgcPreference = document.getElementById('agc-toggle')?.checked || false;
+    qualityTestData.userAgcPreference = userAgcPreference;
+    
     const deviceSelect = document.getElementById('quality-device-select');
     const deviceId = deviceSelect?.value || '';
+    qualityTestData.selectedDeviceId = deviceId;
     
-    const success = await initQualityAudio(agcEnabled, deviceId);
+    // Always record silence with AGC OFF for accurate noise floor measurement
+    const success = await initQualityAudio(false, deviceId);
     if (!success) {
         btn.style.display = 'inline-flex';
         document.getElementById('silence-visualizer').innerHTML = `
@@ -699,7 +724,8 @@ async function startSilenceRecording() {
         return;
     }
     
-    updateQualityDeviceInfo();
+    updateQualityDeviceInfo('silence');
+    updateAgcStatusBar(false, '— measuring true noise floor');
     
     qualityTestData.noiseFloorSamples = [];
     const duration = 5000;
@@ -732,7 +758,7 @@ async function startSilenceRecording() {
     measure();
 }
 
-function updateQualityDeviceInfo() {
+function updateQualityDeviceInfo(phase = 'silence') {
     const infoEl = document.getElementById('quality-device-info');
     const nameEl = document.getElementById('quality-device-name');
     const settingsEl = document.getElementById('quality-device-settings');
@@ -752,10 +778,34 @@ function updateQualityDeviceInfo() {
         settingsParts.push(settings.channelCount === 1 ? 'Mono' : `${settings.channelCount}ch`);
     }
     
-    settingsParts.push(`AGC: ${settings.autoGainControl ? 'On' : 'Off'}`);
-    settingsParts.push(`Noise Supp: ${settings.noiseSuppression ? 'On' : 'Off'}`);
+    // Explain why AGC is off during silence phase
+    if (phase === 'silence') {
+        settingsParts.push('AGC: Off (for accurate noise floor)');
+    } else {
+        settingsParts.push(`AGC: ${settings.autoGainControl ? 'On' : 'Off'}`);
+    }
     
     settingsEl.textContent = settingsParts.join(' • ');
+}
+
+/**
+ * Update the persistent AGC status bar
+ * @param {boolean} agcOn - Whether AGC is currently on
+ * @param {string} detail - Additional detail text
+ */
+function updateAgcStatusBar(agcOn, detail = '') {
+    const bar = document.getElementById('agc-status-bar');
+    const icon = document.getElementById('agc-status-icon');
+    const text = document.getElementById('agc-status-text');
+    const detailEl = document.getElementById('agc-status-detail');
+    
+    if (!bar) return;
+    
+    bar.style.display = 'flex';
+    bar.className = `agc-status ${agcOn ? 'agc-on' : 'agc-off'}`;
+    icon.textContent = agcOn ? '🔊' : '🔇';
+    text.textContent = agcOn ? 'AGC: On' : 'AGC: Off';
+    detailEl.textContent = detail;
 }
 
 function finishSilenceRecording() {
@@ -782,13 +832,17 @@ async function startVoiceRecording() {
     
     document.getElementById('voice-visualizer').style.display = 'block';
     
-    if (!qualityTestData.analyser) {
-        const agcEnabled = document.getElementById('agc-toggle')?.checked || false;
-        const deviceSelect = document.getElementById('quality-device-select');
-        const deviceId = deviceSelect?.value || '';
-        const success = await initQualityAudio(agcEnabled, deviceId);
-        if (!success) return;
-    }
+    // Reinitialize audio with user's AGC preference for voice phase
+    // (Silence phase was recorded with AGC OFF for accurate noise floor)
+    const agcEnabled = qualityTestData.userAgcPreference || false;
+    const deviceId = qualityTestData.selectedDeviceId || '';
+    
+    const success = await initQualityAudio(agcEnabled, deviceId);
+    if (!success) return;
+    
+    // Update device info and AGC status to show current settings
+    updateQualityDeviceInfo('voice');
+    updateAgcStatusBar(agcEnabled, agcEnabled ? '— automatic level adjustment' : '— raw microphone signal');
     
     qualityTestData.voiceSamples = [];
     qualityTestData.peakVoice = -Infinity;
@@ -875,6 +929,10 @@ function resetQualityTest() {
     document.getElementById('btn-start-silence').style.display = 'inline-flex';
     document.getElementById('btn-next-to-voice').style.display = 'none';
     document.getElementById('btn-show-results').style.display = 'none';
+    
+    // Hide AGC status bar
+    const agcBar = document.getElementById('agc-status-bar');
+    if (agcBar) agcBar.style.display = 'none';
     
     // Reset voice pre-start section
     const preStart = document.getElementById('voice-pre-start');

@@ -622,6 +622,32 @@
         .toggle-switch input:checked + .toggle-slider:before {
             transform: translateX(22px);
         }
+        
+        /* AGC Status Bar */
+        .agc-status {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-weight: 500;
+        }
+        .agc-status.agc-on {
+            background: #e8f5e9;
+            border: 1px solid #81c784;
+            color: #2e7d32;
+        }
+        .agc-status.agc-off {
+            background: #fff3e0;
+            border: 1px solid #ffb74d;
+            color: #e65100;
+        }
+        .agc-status .detail {
+            font-weight: normal;
+            color: inherit;
+            opacity: 0.8;
+        }
     </style>
 </head>
 <body>
@@ -717,6 +743,13 @@
                         <div class="card-title">Quick Microphone Test</div>
                         <div class="card-subtitle">Click the button to test your microphone</div>
                     </div>
+                </div>
+                
+                <!-- AGC status indicator for quick test -->
+                <div id="quick-agc-status" class="agc-status agc-on" style="display: none; margin-bottom: 1rem;">
+                    <span id="quick-agc-icon">🔊</span>
+                    <span id="quick-agc-text">AGC: On</span>
+                    <span class="detail">— automatic level adjustment (browser default)</span>
                 </div>
                 
                 <div id="quick-test-status"></div>
@@ -877,6 +910,13 @@
                         <div class="card-title">Microphone Level Check</div>
                         <div class="card-subtitle">Are you loud enough to be heard clearly?</div>
                     </div>
+                </div>
+                
+                <!-- Persistent AGC status indicator -->
+                <div id="agc-status-bar" class="agc-status agc-off" style="display: none; margin-bottom: 1rem;">
+                    <span id="agc-status-icon">🔇</span>
+                    <span id="agc-status-text">AGC: Off</span>
+                    <span id="agc-status-detail" class="detail"></span>
                 </div>
                 
                 <div id="quality-intro">
