@@ -351,19 +351,16 @@ export function analyzeChannelBalance() {
 }
 
 /**
- * Populate device list for quality analysis
+ * Populate device list - does NOT trigger permission prompt
+ * Shows device count if labels aren't available yet
  * @param {HTMLSelectElement} selectElement - The select element to populate
  */
 export async function populateDeviceList(selectElement) {
     if (!selectElement) return;
     
     try {
-        // Request permission and get the default device info
-        const tempStream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        const defaultTrack = tempStream.getAudioTracks()[0];
-        const defaultDeviceId = defaultTrack?.getSettings()?.deviceId || '';
-        tempStream.getTracks().forEach(t => t.stop());
-        
+        // Try to get devices without triggering permission prompt
+        // Labels will be empty if permission hasn't been granted
         const devices = await navigator.mediaDevices.enumerateDevices();
         const audioInputs = devices.filter(d => d.kind === 'audioinput');
         
@@ -374,20 +371,75 @@ export async function populateDeviceList(selectElement) {
             return;
         }
         
-        audioInputs.forEach((device, index) => {
+        // Check if we have labels (permission was previously granted)
+        const haveLabels = audioInputs.some(d => d.label && d.label.length > 0);
+        
+        if (!haveLabels) {
+            // No permission yet - show device count, don't trigger prompt
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = `${audioInputs.length} microphone${audioInputs.length > 1 ? 's' : ''} detected`;
+            option.selected = true;
+            selectElement.appendChild(option);
+            return;
+        }
+        
+        // We have labels - show the full device list
+        // Separate meta-entries (Default, Communications) from actual devices
+        // Windows has both "Default Device" and "Communications Device" - this matters!
+        const metaDevices = audioInputs.filter(d => 
+            d.deviceId === 'default' || d.deviceId === 'communications'
+        );
+        const realDevices = audioInputs.filter(d => 
+            d.deviceId !== 'default' && d.deviceId !== 'communications'
+        );
+        
+        // Add meta-devices first (Default, Communications) if they exist
+        metaDevices.forEach(device => {
+            const option = document.createElement('option');
+            option.value = device.deviceId;
+            if (device.deviceId === 'default') {
+                option.textContent = `🔊 ${device.label || 'Default Device'}`;
+                option.selected = true;
+            } else if (device.deviceId === 'communications') {
+                option.textContent = `📞 ${device.label || 'Communications Device'}`;
+            }
+            selectElement.appendChild(option);
+        });
+        
+        // Add separator if we have meta-devices
+        if (metaDevices.length > 0 && realDevices.length > 0) {
+            const separator = document.createElement('option');
+            separator.disabled = true;
+            separator.textContent = '──────────────';
+            selectElement.appendChild(separator);
+        }
+        
+        // Add actual devices
+        realDevices.forEach((device, index) => {
             const option = document.createElement('option');
             option.value = device.deviceId;
             option.textContent = device.label || `Microphone ${index + 1}`;
-            // Auto-select the default device
-            if (device.deviceId === defaultDeviceId) {
+            if (metaDevices.length === 0 && index === 0) {
                 option.selected = true;
             }
             selectElement.appendChild(option);
         });
         
-        console.log('Available microphones:', audioInputs.map(d => d.label));
+        // Log for debugging
+        if (metaDevices.length >= 2) {
+            const defaultLabel = metaDevices.find(d => d.deviceId === 'default')?.label || '';
+            const commLabel = metaDevices.find(d => d.deviceId === 'communications')?.label || '';
+            if (defaultLabel !== commLabel) {
+                console.log('⚠️ Default and Communications devices differ:');
+                console.log('   Default:', defaultLabel);
+                console.log('   Communications:', commLabel);
+            }
+        }
+        
+        console.log('Available microphones:', audioInputs.map(d => `${d.deviceId}: ${d.label}`));
     } catch (error) {
         console.error('Failed to get device list:', error);
-        selectElement.innerHTML = '<option value="">Permission needed - click Begin to grant</option>';
+        selectElement.innerHTML = '<option value="">Click Start to test</option>';
     }
 }

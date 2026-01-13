@@ -45,6 +45,8 @@ import {
 
 import { displayQualityResults } from './results.js';
 
+import { PlaybackRecorder, getMediaRecorderSupport } from './playback.js';
+
 // ============================================
 // Utilities
 // ============================================
@@ -76,6 +78,13 @@ let previousScreen = 'screen-select';
 let audioDetected = false;
 let lowVolumeWarningShown = false;
 let audioBlockedWarningShown = false;
+
+// Playback state
+let playbackRecorder = null;
+let playbackCountdownTimer = null;
+let playbackRecordingTimer = null;
+let playbackPeakLevel = 0;
+let playbackAudioElement = null;
 
 // ============================================
 // Screen Navigation
@@ -116,7 +125,14 @@ function stopStream() {
 async function runQuickTest() {
     const statusEl = document.getElementById('quick-test-status');
     const visualizerEl = document.getElementById('quick-visualizer');
-    const btnEl = document.getElementById('btn-quick-test');
+    const introEl = document.getElementById('quick-test-intro');
+    
+    // Get selected device (if device switcher is already visible from a previous test)
+    const deviceSelect = document.getElementById('quick-device-select');
+    const selectedDeviceId = deviceSelect?.value || '';
+    
+    // Hide the intro section while we're requesting access
+    if (introEl) introEl.style.display = 'none';
     
     statusEl.innerHTML = `
         <div class="status-card info">
@@ -128,20 +144,45 @@ async function runQuickTest() {
         </div>
     `;
     
-    const result = await requestMicAccess();
+    // Build constraints with selected device
+    const constraints = selectedDeviceId 
+        ? { audio: { deviceId: { exact: selectedDeviceId } } }
+        : { audio: true };
+    
+    const result = await requestMicAccess(constraints);
     
     if (result.success) {
         currentStream = result.stream;
-        btnEl.style.display = 'none';
+        
+        // Get info about the device that's actually being used
+        const track = currentStream.getAudioTracks()[0];
+        const settings = track?.getSettings() || {};
+        const activeDeviceId = settings.deviceId;
+        
+        // Show the visualizer (intro already hidden when we started requesting)
         visualizerEl.style.display = 'block';
         statusEl.innerHTML = ''; // Clear the "requesting" status - meter speaks for itself
+        
+        // Now that we have permission, show the device switcher with real labels
+        const deviceSwitcher = document.getElementById('quick-device-switcher');
+        if (deviceSwitcher && deviceSelect) {
+            await populateDeviceList(deviceSelect);
+            // Select the device that's actually being used
+            if (activeDeviceId) {
+                const options = deviceSelect.options;
+                for (let i = 0; i < options.length; i++) {
+                    if (options[i].value === activeDeviceId) {
+                        deviceSelect.selectedIndex = i;
+                        break;
+                    }
+                }
+            }
+            deviceSwitcher.style.display = 'block';
+        }
         
         // Show AGC status indicator
         const agcStatusEl = document.getElementById('quick-agc-status');
         if (agcStatusEl) {
-            // Check actual AGC status from the track settings
-            const track = currentStream.getAudioTracks()[0];
-            const settings = track?.getSettings() || {};
             const agcOn = settings.autoGainControl !== false; // Default to true if not specified
             
             agcStatusEl.style.display = 'flex';
@@ -152,27 +193,23 @@ async function runQuickTest() {
         
         await startLevelMeter('quick-level-bar', 'quick-level-text');
     } else {
-        let message = 'Unknown error';
-        let detail = '';
+        // Show the intro section again (so user can retry)
+        if (introEl) introEl.style.display = 'block';
         
-        if (result.error.name === 'NotAllowedError') {
-            message = 'Permission denied';
-            detail = 'You blocked microphone access. Check the guide below to reset.';
-        } else if (result.error.name === 'NotFoundError') {
-            message = 'No microphone found';
-            detail = 'Your device doesn\'t have a microphone, or it\'s disabled.';
-        } else if (result.error.name === 'NotReadableError') {
-            message = 'Microphone is busy';
-            detail = 'Another application may be using your microphone.';
-        }
-        
+        // Quick Test stays quick - just show the problem and link to Troubleshooter
         statusEl.innerHTML = `
             <div class="status-card error">
                 <span class="status-icon">❌</span>
                 <div class="status-text">
-                    <div class="status-title">${message}</div>
-                    <div class="status-detail">${detail}</div>
+                    <div class="status-title">Microphone not available</div>
+                    <div class="status-detail">We couldn't access your microphone.</div>
                 </div>
+            </div>
+            <div style="margin-top: 1rem; text-align: center;">
+                <a href="#" onclick="window.MicCheck.showScreen('screen-troubleshoot'); window.MicCheck.runTroubleshoot(); return false;" 
+                   style="color: var(--accent); font-weight: 500; text-decoration: none;">
+                    🔧 Go to Troubleshooter →
+                </a>
             </div>
         `;
     }
@@ -338,14 +375,6 @@ async function startLevelMeter(barId, textId, resultId = 'quick-result') {
             frameCount++;
             if (frameCount % 60 === 0) {
                 console.log('Audio level debug - RMS:', rms.toFixed(4), 'Level:', level.toFixed(1));
-                
-                if (frameCount >= 180 && maxLevel < 0.1) {
-                    const allSilent = dataArray.every(v => v === 128);
-                    if (allSilent) {
-                        console.warn('Detected possible privacy.resistFingerprinting');
-                        showFingerprintingWarning(barEl.parentElement);
-                    }
-                }
             }
             
             // Use clip-path to reveal the bar - inset from right = (100 - level)%
@@ -357,6 +386,15 @@ async function startLevelMeter(barId, textId, resultId = 'quick-result') {
             if (level > 5 && !audioDetected && resultEl) {
                 audioDetected = true;
                 resultEl.style.display = 'flex';
+                
+                // Show playback feature if MediaRecorder is supported
+                const { supported } = getMediaRecorderSupport();
+                if (supported) {
+                    const playbackContainer = document.getElementById('quick-playback');
+                    if (playbackContainer) {
+                        playbackContainer.style.display = 'block';
+                    }
+                }
             }
             
             // Hide low volume warning if volume becomes good
@@ -382,7 +420,15 @@ async function startLevelMeter(barId, textId, resultId = 'quick-result') {
 function stopQuickTest() {
     stopStream();
     audioDetected = false;
-    document.getElementById('btn-quick-test').style.display = 'block';
+    
+    // Show the intro section (with Start button)
+    const introEl = document.getElementById('quick-test-intro');
+    if (introEl) introEl.style.display = 'block';
+    
+    // Hide the device switcher
+    const deviceSwitcher = document.getElementById('quick-device-switcher');
+    if (deviceSwitcher) deviceSwitcher.style.display = 'none';
+    
     document.getElementById('quick-visualizer').style.display = 'none';
     document.getElementById('quick-result').style.display = 'none';
     document.getElementById('quick-level-bar').style.clipPath = 'inset(0 100% 0 0)';
@@ -392,6 +438,258 @@ function stopQuickTest() {
     // Hide AGC status indicator
     const agcStatusEl = document.getElementById('quick-agc-status');
     if (agcStatusEl) agcStatusEl.style.display = 'none';
+    
+    // Cleanup playback state
+    cleanupPlayback();
+}
+
+/**
+ * Clean up playback resources
+ */
+function cleanupPlayback() {
+    // Cancel any running timers
+    if (playbackCountdownTimer) {
+        clearTimeout(playbackCountdownTimer);
+        playbackCountdownTimer = null;
+    }
+    if (playbackRecordingTimer) {
+        clearInterval(playbackRecordingTimer);
+        playbackRecordingTimer = null;
+    }
+    
+    // Stop and cleanup recorder
+    if (playbackRecorder) {
+        if (playbackRecorder.getIsRecording()) {
+            playbackRecorder.abort();
+        }
+        playbackRecorder.cleanup();
+        playbackRecorder = null;
+    }
+    
+    // Stop audio playback and revoke blob URL to prevent memory leak
+    if (playbackAudioElement) {
+        playbackAudioElement.pause();
+        if (playbackAudioElement.src && playbackAudioElement.src.startsWith('blob:')) {
+            URL.revokeObjectURL(playbackAudioElement.src);
+        }
+        playbackAudioElement.src = '';
+    }
+    
+    // Reset UI
+    const playbackContainer = document.getElementById('quick-playback');
+    if (playbackContainer) {
+        playbackContainer.style.display = 'none';
+    }
+    
+    // Reset all playback sections to initial state
+    showPlaybackSection('playback-record-prompt');
+    
+    playbackPeakLevel = 0;
+}
+
+/**
+ * Show a specific playback section, hide others
+ * @param {string} sectionId - ID of section to show
+ */
+function showPlaybackSection(sectionId) {
+    const sections = [
+        'playback-record-prompt',
+        'playback-countdown',
+        'playback-recording',
+        'playback-ready',
+        'playback-playing'
+    ];
+    
+    sections.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.style.display = id === sectionId ? 'block' : 'none';
+        }
+    });
+}
+
+/**
+ * Start the playback recording flow
+ */
+async function startPlaybackRecording() {
+    if (!currentStream) {
+        console.error('No stream available for playback recording');
+        return;
+    }
+    
+    // Check if MediaRecorder is supported
+    const { supported } = getMediaRecorderSupport();
+    if (!supported) {
+        console.warn('MediaRecorder not supported, hiding playback feature');
+        document.getElementById('quick-playback').style.display = 'none';
+        return;
+    }
+    
+    // Initialize recorder if needed
+    if (!playbackRecorder) {
+        try {
+            playbackRecorder = new PlaybackRecorder(currentStream);
+        } catch (error) {
+            console.error('Failed to create PlaybackRecorder:', error);
+            return;
+        }
+    }
+    
+    // Reset peak level tracking
+    playbackPeakLevel = 0;
+    
+    // Cancel any existing countdown to prevent race condition
+    if (playbackCountdownTimer) {
+        clearTimeout(playbackCountdownTimer);
+        playbackCountdownTimer = null;
+    }
+    
+    // Start countdown
+    showPlaybackSection('playback-countdown');
+    const countdownEl = document.getElementById('countdown-number');
+    let count = 3;
+    countdownEl.textContent = count;
+    
+    const runCountdown = () => {
+        count--;
+        if (count > 0) {
+            countdownEl.textContent = count;
+            playbackCountdownTimer = setTimeout(runCountdown, 1000);
+        } else {
+            startRecording();
+        }
+    };
+    
+    playbackCountdownTimer = setTimeout(runCountdown, 1000);
+}
+
+/**
+ * Start the actual recording
+ */
+async function startRecording() {
+    showPlaybackSection('playback-recording');
+    
+    const timerEl = document.getElementById('recording-timer');
+    let secondsLeft = 5;
+    timerEl.textContent = secondsLeft;
+    
+    // Update timer and track peak level
+    playbackRecordingTimer = setInterval(() => {
+        secondsLeft--;
+        timerEl.textContent = Math.max(0, secondsLeft);
+        
+        // Track peak level during recording using existing analyser
+        if (analyser) {
+            const bufferLength = analyser.fftSize;
+            const dataArray = new Uint8Array(bufferLength);
+            analyser.getByteTimeDomainData(dataArray);
+            
+            let sum = 0;
+            for (let i = 0; i < bufferLength; i++) {
+                const sample = (dataArray[i] - 128) / 128;
+                sum += sample * sample;
+            }
+            const rms = Math.sqrt(sum / bufferLength);
+            const level = Math.min(100, rms * 250);
+            
+            if (level > playbackPeakLevel) {
+                playbackPeakLevel = level;
+            }
+        }
+    }, 1000);
+    
+    try {
+        const blobUrl = await playbackRecorder.start(5000);
+        
+        // Clear the timer interval
+        if (playbackRecordingTimer) {
+            clearInterval(playbackRecordingTimer);
+            playbackRecordingTimer = null;
+        }
+        
+        // Show ready state
+        showPlaybackSection('playback-ready');
+        
+        // Set up audio element
+        playbackAudioElement = document.getElementById('playback-audio');
+        playbackAudioElement.src = blobUrl;
+        
+        // Check if recording was silent
+        const warningEl = document.getElementById('playback-warning');
+        if (playbackPeakLevel < 10) {
+            // Very quiet recording - show warning
+            warningEl.style.display = 'flex';
+        } else {
+            warningEl.style.display = 'none';
+        }
+        
+    } catch (error) {
+        console.error('Recording failed:', error);
+        
+        if (playbackRecordingTimer) {
+            clearInterval(playbackRecordingTimer);
+            playbackRecordingTimer = null;
+        }
+        
+        // Return to record prompt on error
+        showPlaybackSection('playback-record-prompt');
+    }
+}
+
+/**
+ * Play the recorded audio
+ */
+function playRecording() {
+    if (!playbackAudioElement || !playbackAudioElement.src) {
+        console.error('No recording to play');
+        return;
+    }
+    
+    showPlaybackSection('playback-playing');
+    
+    playbackAudioElement.currentTime = 0;
+    playbackAudioElement.play().catch(error => {
+        console.error('Playback failed:', error);
+        showPlaybackSection('playback-ready');
+    });
+    
+    // Return to ready state when playback ends
+    playbackAudioElement.onended = () => {
+        showPlaybackSection('playback-ready');
+    };
+}
+
+/**
+ * Stop current playback
+ */
+function stopPlayback() {
+    if (playbackAudioElement) {
+        playbackAudioElement.pause();
+        playbackAudioElement.currentTime = 0;
+    }
+    showPlaybackSection('playback-ready');
+}
+
+/**
+ * Record again
+ */
+function recordAgain() {
+    // Stop any current playback and revoke blob URL to prevent memory leak
+    if (playbackAudioElement) {
+        playbackAudioElement.pause();
+        if (playbackAudioElement.src && playbackAudioElement.src.startsWith('blob:')) {
+            URL.revokeObjectURL(playbackAudioElement.src);
+        }
+        playbackAudioElement.src = '';
+    }
+    
+    // Cleanup previous recording
+    if (playbackRecorder) {
+        playbackRecorder.cleanup();
+    }
+    
+    // Start new recording
+    startPlaybackRecording();
 }
 
 // ============================================
@@ -825,6 +1123,10 @@ function finishSilenceRecording() {
 function goToVoiceStep() {
     document.getElementById('quality-step-silence').style.display = 'none';
     document.getElementById('quality-step-voice').style.display = 'block';
+    
+    // Pre-initialize AGC status bar with user's selected preference
+    const agcEnabled = qualityTestData.userAgcPreference || false;
+    updateAgcStatusBar(agcEnabled, agcEnabled ? '— automatic level adjustment' : '— raw microphone signal');
 }
 
 async function startVoiceRecording() {
@@ -1046,7 +1348,7 @@ function setupListeners() {
     // Homepage navigation buttons
     document.getElementById('btn-home-test')?.addEventListener('click', () => {
         showScreen('screen-quick-test');
-        runQuickTest();
+        runQuickTest(); // Start immediately - no second button needed
     });
     document.getElementById('btn-home-quality')?.addEventListener('click', () => {
         resetQualityTest(); // Reset to beginning when entering Level Check
@@ -1081,6 +1383,41 @@ function setupListeners() {
     // Quick test
     document.getElementById('btn-quick-test')?.addEventListener('click', runQuickTest);
     document.getElementById('btn-quick-stop')?.addEventListener('click', stopQuickTest);
+    
+    // Quick test device selector - switch mics on the fly
+    document.getElementById('quick-device-select')?.addEventListener('change', () => {
+        // If test is running (visualizer visible), restart with new device
+        const visualizer = document.getElementById('quick-visualizer');
+        if (visualizer && visualizer.style.display !== 'none') {
+            // Clear the success message and reset state when switching devices
+            const resultEl = document.getElementById('quick-result');
+            if (resultEl) resultEl.style.display = 'none';
+            audioDetected = false; // Reset so success can trigger again
+            
+            // Reset level meter
+            document.getElementById('quick-level-bar').style.clipPath = 'inset(0 100% 0 0)';
+            document.getElementById('quick-level-text').textContent = '0%';
+            
+            stopStream(); // Stop current stream
+            runQuickTest(); // Restart with newly selected device
+        }
+    });
+    
+    // Playback feature
+    document.getElementById('btn-start-playback-record')?.addEventListener('click', startPlaybackRecording);
+    document.getElementById('btn-play-recording')?.addEventListener('click', playRecording);
+    document.getElementById('btn-stop-playback')?.addEventListener('click', stopPlayback);
+    document.getElementById('btn-record-again')?.addEventListener('click', recordAgain);
+    
+    // Link to Level Check from playback warning
+    document.getElementById('link-playback-level-check')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        stopQuickTest();
+        resetQualityTest();
+        showScreen('screen-quality');
+        const select = document.getElementById('quality-device-select');
+        if (select) populateDeviceList(select);
+    });
     
     // Privacy check
     document.getElementById('btn-privacy-check')?.addEventListener('click', runPrivacyCheck);

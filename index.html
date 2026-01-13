@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mic Check — Browser Microphone Diagnostic Tool</title>
+    <title>Mic Check — Can You Hear Me?</title>
     <!-- 
         Mic Check - Browser Microphone Diagnostic Tool
         Copyright (c) 2026 Matt Read
@@ -648,6 +648,53 @@
             color: inherit;
             opacity: 0.8;
         }
+        
+        /* Playback Feature Styles */
+        .playback-section {
+            padding: 1rem;
+            background: var(--bg-elevated);
+            border-radius: 12px;
+            border: 1px solid var(--border);
+        }
+        
+        .countdown-display {
+            font-size: 4rem;
+            font-weight: bold;
+            color: var(--accent);
+            animation: countdownPulse 1s ease-in-out infinite;
+        }
+        
+        @keyframes countdownPulse {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.1); opacity: 0.8; }
+        }
+        
+        .recording-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--problem);
+            font-weight: 600;
+            font-size: 1.1rem;
+        }
+        
+        .recording-dot {
+            width: 12px;
+            height: 12px;
+            background: var(--problem);
+            border-radius: 50%;
+            animation: recordingPulse 1s ease-in-out infinite;
+        }
+        
+        @keyframes recordingPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+        
+        .btn-small {
+            padding: 0.5rem 1rem;
+            font-size: 0.9rem;
+        }
     </style>
 </head>
 <body>
@@ -655,7 +702,7 @@
         <header>
             <div class="logo">🎤</div>
             <h1>Mic Check</h1>
-            <p class="tagline">Browser Microphone Diagnostic Tool</p>
+            <p class="tagline">Can you hear me?</p>
             <div class="privacy-badge">
                 🔒 100% Private — No data leaves your browser
             </div>
@@ -741,8 +788,21 @@
                     <span class="card-icon">🎤</span>
                     <div>
                         <div class="card-title">Quick Microphone Test</div>
-                        <div class="card-subtitle">Click the button to test your microphone</div>
+                        <div class="card-subtitle">Check if your microphone is working</div>
                     </div>
+                </div>
+                
+                <div id="quick-test-intro">
+                    <button id="btn-quick-test" class="btn btn-primary btn-large">
+                        🎤 Start Microphone Test
+                    </button>
+                </div>
+                
+                <!-- Device switcher - only shown after permission granted -->
+                <div id="quick-device-switcher" style="display: none; margin-bottom: 1rem;">
+                    <label style="display: block; margin-bottom: 0.5rem; font-weight: 500; font-size: 0.9rem;">Testing:</label>
+                    <select id="quick-device-select" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; background: white;">
+                    </select>
                 </div>
                 
                 <!-- AGC status indicator for quick test -->
@@ -753,10 +813,6 @@
                 </div>
                 
                 <div id="quick-test-status"></div>
-                
-                <button id="btn-quick-test" class="btn btn-primary btn-large">
-                    🎤 Start Microphone Test
-                </button>
                 
                 <div id="quick-visualizer" style="display: none;">
                     <p style="margin-bottom: 0.75rem; color: var(--text-secondary);">
@@ -790,6 +846,71 @@
                         <div class="status-text">
                             <div class="status-title">Your microphone is working!</div>
                         </div>
+                    </div>
+                    
+                    <!-- Playback Feature -->
+                    <div id="quick-playback" style="display: none; margin-top: 1.5rem;">
+                        <!-- Initial state: Record button -->
+                        <div id="playback-record-prompt" class="playback-section">
+                            <p style="color: var(--text-secondary); margin-bottom: 0.75rem; font-size: 0.9rem;">
+                                Hear what you sound like to others
+                            </p>
+                            <button id="btn-start-playback-record" class="btn btn-secondary" style="width: 100%;">
+                                🔊 Record & Play Back (5 sec)
+                            </button>
+                            <p style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.5rem;">
+                                🔒 Recording stays in your browser and is deleted when you leave
+                            </p>
+                        </div>
+                        
+                        <!-- Countdown state -->
+                        <div id="playback-countdown" class="playback-section" style="display: none; text-align: center;">
+                            <p style="color: var(--text-secondary); margin-bottom: 0.5rem;">Get ready to speak...</p>
+                            <div id="countdown-number" class="countdown-display">3</div>
+                        </div>
+                        
+                        <!-- Recording state -->
+                        <div id="playback-recording" class="playback-section" style="display: none; text-align: center;">
+                            <div class="recording-indicator">
+                                <span class="recording-dot"></span>
+                                <span>Recording...</span>
+                            </div>
+                            <div id="recording-timer" style="font-size: 1.5rem; font-weight: bold; margin: 0.5rem 0;">5</div>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem;">Speak now!</p>
+                        </div>
+                        
+                        <!-- Ready to play state -->
+                        <div id="playback-ready" class="playback-section" style="display: none;">
+                            <div id="playback-warning" class="status-card warning" style="display: none; margin-bottom: 1rem;">
+                                <span class="status-icon">🔇</span>
+                                <div class="status-text">
+                                    <div class="status-title">We didn't hear much</div>
+                                    <div class="status-detail">
+                                        Your mic may be too quiet. 
+                                        <a href="#" id="link-playback-level-check" style="color: var(--accent);">Run a Level Check</a> to diagnose.
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="btn-group" style="justify-content: center;">
+                                <button id="btn-play-recording" class="btn btn-primary">
+                                    ▶️ Play Recording
+                                </button>
+                                <button id="btn-record-again" class="btn btn-secondary">
+                                    🔄 Record Again
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Playing state -->
+                        <div id="playback-playing" class="playback-section" style="display: none; text-align: center;">
+                            <div style="font-size: 1.25rem; margin-bottom: 0.5rem;">🔊 Playing...</div>
+                            <button id="btn-stop-playback" class="btn btn-secondary btn-small">
+                                ⏹️ Stop
+                            </button>
+                        </div>
+                        
+                        <!-- Hidden audio element -->
+                        <audio id="playback-audio" style="display: none;"></audio>
                     </div>
                     
                     <button id="btn-quick-stop" class="btn btn-secondary" style="margin-top: 1rem;">
