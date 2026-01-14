@@ -69,6 +69,17 @@ export function isFirefoxBased() {
 }
 
 /**
+ * Check if the current browser is Chromium-based
+ * Chromium browsers provide deviceId: "default" for mics (Firefox/Safari don't)
+ * @returns {boolean}
+ */
+export function isChromiumBased() {
+    if (!detectedBrowser) detectBrowser();
+    const chromiumBrowsers = ['Chrome', 'Edge', 'Brave', 'Vivaldi', 'Opera'];
+    return chromiumBrowsers.includes(detectedBrowser?.name);
+}
+
+/**
  * Get browser-specific permission reset instructions
  * @param {string} browserName - Name of the browser
  * @returns {string} HTML instructions

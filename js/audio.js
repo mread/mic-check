@@ -7,6 +7,7 @@
 
 import { linearToDb } from './standards.js';
 import { createKWeightingFilters, LufsBlockCollector } from './lufs.js';
+import { isChromiumBased, detectBrowser } from './browser.js';
 
 /**
  * State for quality test audio
@@ -385,8 +386,14 @@ export async function populateDeviceList(selectElement) {
         }
         
         // We have labels - show the full device list
+        // Browser behavior differs per SPEC_ISSUES.md:
+        // - Chrome/Chromium: has virtual deviceId "default" and "communications"
+        // - Firefox/Safari: lists OS default device FIRST in array (no virtual IDs)
+        
+        const isChromium = isChromiumBased();
+        
         // Separate meta-entries (Default, Communications) from actual devices
-        // Windows has both "Default Device" and "Communications Device" - this matters!
+        // Only Chromium browsers have these virtual device IDs
         const metaDevices = audioInputs.filter(d => 
             d.deviceId === 'default' || d.deviceId === 'communications'
         );
@@ -394,50 +401,70 @@ export async function populateDeviceList(selectElement) {
             d.deviceId !== 'default' && d.deviceId !== 'communications'
         );
         
-        // Add meta-devices first (Default, Communications) if they exist
-        metaDevices.forEach(device => {
-            const option = document.createElement('option');
-            option.value = device.deviceId;
-            if (device.deviceId === 'default') {
-                option.textContent = `🔊 ${device.label || 'Default Device'}`;
-                option.selected = true;
-            } else if (device.deviceId === 'communications') {
-                option.textContent = `📞 ${device.label || 'Communications Device'}`;
+        if (isChromium && metaDevices.length > 0) {
+            // Chromium path: use virtual "default" and "communications" entries
+            metaDevices.forEach(device => {
+                const option = document.createElement('option');
+                option.value = device.deviceId;
+                if (device.deviceId === 'default') {
+                    option.textContent = `🔊 ${device.label || 'Default Device'}`;
+                    option.selected = true;
+                } else if (device.deviceId === 'communications') {
+                    option.textContent = `📞 ${device.label || 'Communications Device'}`;
+                }
+                selectElement.appendChild(option);
+            });
+            
+            // Add separator
+            if (realDevices.length > 0) {
+                const separator = document.createElement('option');
+                separator.disabled = true;
+                separator.textContent = '──────────────';
+                selectElement.appendChild(separator);
             }
-            selectElement.appendChild(option);
-        });
-        
-        // Add separator if we have meta-devices
-        if (metaDevices.length > 0 && realDevices.length > 0) {
-            const separator = document.createElement('option');
-            separator.disabled = true;
-            separator.textContent = '──────────────';
-            selectElement.appendChild(separator);
+            
+            // Add actual devices
+            realDevices.forEach((device, index) => {
+                const option = document.createElement('option');
+                option.value = device.deviceId;
+                option.textContent = device.label || `Microphone ${index + 1}`;
+                selectElement.appendChild(option);
+            });
+        } else {
+            // Firefox/Safari path: first device in list is the OS default
+            // Per W3C spec (see SPEC_ISSUES.md), these browsers list default first
+            realDevices.forEach((device, index) => {
+                const option = document.createElement('option');
+                option.value = device.deviceId;
+                
+                if (index === 0) {
+                    // First device is the system default in Firefox/Safari
+                    option.textContent = `🔊 ${device.label || 'Microphone'} (System Default)`;
+                    option.selected = true;
+                } else {
+                    option.textContent = device.label || `Microphone ${index + 1}`;
+                }
+                
+                selectElement.appendChild(option);
+            });
         }
         
-        // Add actual devices
-        realDevices.forEach((device, index) => {
-            const option = document.createElement('option');
-            option.value = device.deviceId;
-            option.textContent = device.label || `Microphone ${index + 1}`;
-            if (metaDevices.length === 0 && index === 0) {
-                option.selected = true;
-            }
-            selectElement.appendChild(option);
-        });
-        
         // Log for debugging
-        if (metaDevices.length >= 2) {
+        const browser = detectBrowser();
+        console.log(`Device enumeration (${browser.name}, ${isChromium ? 'Chromium-based' : 'non-Chromium'}):`);
+        console.log('  Devices:', audioInputs.map(d => `${d.deviceId}: ${d.label}`));
+        
+        if (isChromium && metaDevices.length >= 2) {
             const defaultLabel = metaDevices.find(d => d.deviceId === 'default')?.label || '';
             const commLabel = metaDevices.find(d => d.deviceId === 'communications')?.label || '';
             if (defaultLabel !== commLabel) {
-                console.log('⚠️ Default and Communications devices differ:');
-                console.log('   Default:', defaultLabel);
-                console.log('   Communications:', commLabel);
+                console.log('  ⚠️ Default and Communications devices differ:');
+                console.log('     Default:', defaultLabel);
+                console.log('     Communications:', commLabel);
             }
+        } else if (!isChromium && realDevices.length > 0) {
+            console.log('  ℹ️ First device is system default (per browser spec):', realDevices[0].label);
         }
-        
-        console.log('Available microphones:', audioInputs.map(d => `${d.deviceId}: ${d.label}`));
     } catch (error) {
         console.error('Failed to get device list:', error);
         selectElement.innerHTML = '<option value="">Click Start to test</option>';
