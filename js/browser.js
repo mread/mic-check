@@ -149,6 +149,61 @@ export async function checkPermission() {
 }
 
 /**
+ * Detect if browser is in private/incognito mode
+ * This helps explain to users why they need to grant permission every time
+ * 
+ * Detection methods vary by browser - none are 100% reliable but provide good hints
+ * @returns {Promise<{isPrivate: boolean, confidence: 'high'|'medium'|'low'|'unknown'}>}
+ */
+export async function detectPrivateBrowsing() {
+    // Firefox: Check for IndexedDB behavior in private mode
+    if (isFirefoxBased()) {
+        try {
+            const db = indexedDB.open('test');
+            return new Promise(resolve => {
+                db.onerror = () => resolve({ isPrivate: true, confidence: 'high' });
+                db.onsuccess = () => {
+                    // Clean up
+                    if (db.result) db.result.close();
+                    indexedDB.deleteDatabase('test');
+                    resolve({ isPrivate: false, confidence: 'high' });
+                };
+            });
+        } catch {
+            return { isPrivate: true, confidence: 'medium' };
+        }
+    }
+    
+    // Chrome/Chromium: Check storage quota (much smaller in incognito)
+    if (isChromiumBased() && navigator.storage?.estimate) {
+        try {
+            const { quota } = await navigator.storage.estimate();
+            // Incognito typically has ~120MB quota vs several GB in normal mode
+            if (quota && quota < 200 * 1024 * 1024) {
+                return { isPrivate: true, confidence: 'medium' };
+            }
+            return { isPrivate: false, confidence: 'medium' };
+        } catch {
+            return { isPrivate: false, confidence: 'low' };
+        }
+    }
+    
+    // Fallback for Safari and other browsers
+    // Note: The localStorage technique is outdated for Safari 11+ (2017)
+    // where localStorage works in private mode with volatile storage.
+    // We cannot reliably detect private browsing in modern Safari.
+    try {
+        localStorage.setItem('private_test', '1');
+        localStorage.removeItem('private_test');
+        // Cannot reliably detect - localStorage works in modern Safari private mode
+        return { isPrivate: false, confidence: 'unknown' };
+    } catch {
+        // localStorage threw - likely older browser in private mode
+        return { isPrivate: true, confidence: 'medium' };
+    }
+}
+
+/**
  * Generate HTML for low volume warning
  * @returns {string} HTML content
  */

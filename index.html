@@ -31,6 +31,7 @@
             --text-secondary: #5f6368;
             --text-muted: #9aa0a6;
             --border: #dadce0;
+            --border-light: #eee;
             --accent: #1a73e8;
             --accent-light: #e8f0fe;
             --problem: #d93025;
@@ -139,11 +140,17 @@
         
         .home-secondary {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: repeat(3, 1fr);
             gap: 0.75rem;
         }
         
-        @media (max-width: 600px) {
+        @media (max-width: 768px) {
+            .home-secondary {
+                grid-template-columns: 1fr 1fr;
+            }
+        }
+        
+        @media (max-width: 480px) {
             .home-secondary {
                 grid-template-columns: 1fr;
             }
@@ -250,6 +257,280 @@
             font-size: 0.9rem;
         }
         
+        /* Device List - clickable rows to select microphone */
+        .device-list-section {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .device-list-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        
+        .device-list-title {
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+        
+        .device-count-badge {
+            font-size: 0.75rem;
+            padding: 0.2rem 0.5rem;
+            background: var(--bg-muted);
+            border-radius: 4px;
+            color: var(--text-muted);
+        }
+        
+        .device-list-picker {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        
+        .device-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.6rem 0.75rem;
+            border: 1px solid var(--border-light);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.15s ease;
+            background: white;
+        }
+        
+        .device-item:hover {
+            background: var(--bg-muted);
+            border-color: var(--border);
+        }
+        
+        .device-item.active {
+            background: var(--accent-light);
+            border-color: var(--accent);
+            border-left: 3px solid var(--accent);
+        }
+        
+        .device-item.active .device-label {
+            font-weight: 600;
+        }
+        
+        .device-item.placeholder {
+            cursor: default;
+            opacity: 0.6;
+        }
+        
+        .device-item.placeholder:hover {
+            background: white;
+            border-color: var(--border-light);
+        }
+        
+        .device-icon {
+            font-size: 1.1rem;
+            flex-shrink: 0;
+        }
+        
+        .device-label {
+            flex-grow: 1;
+            font-size: 0.9rem;
+        }
+        
+        .device-badge {
+            font-size: 0.7rem;
+            padding: 0.15rem 0.4rem;
+            border-radius: 3px;
+            background: var(--bg-muted);
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+        
+        .device-badge.default {
+            background: var(--bg-muted);
+            color: var(--text);
+            font-weight: 600;
+        }
+        
+        .device-badge.comms {
+            background: var(--accent-light);
+            color: var(--accent);
+        }
+        
+        .device-status {
+            font-size: 0.75rem;
+            color: var(--success);
+            font-weight: 600;
+        }
+        
+        /* Multi-Mic Monitor Panel */
+        .mic-monitor-panel {
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
+        }
+        
+        .mic-monitor-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+            padding-top: 0.5rem;
+        }
+        
+        /* Section header style per ux-approach.md Principle #5 */
+        .mic-monitor-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+        
+        .mic-monitor-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+        
+        .mic-monitor-row {
+            display: grid;
+            grid-template-columns: auto auto 1fr minmax(120px, 180px);
+            gap: 0.75rem;
+            align-items: center;
+            padding: 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            background: white;
+            transition: all 0.15s ease;
+        }
+        
+        .mic-monitor-row.monitoring {
+            border-color: var(--accent);
+            background: var(--accent-light);
+        }
+        
+        .mic-monitor-row.primary {
+            border-left: 3px solid var(--accent);
+        }
+        
+        .mic-monitor-row.placeholder {
+            grid-template-columns: auto 1fr;
+            opacity: 0.6;
+        }
+        
+        .mic-monitor-row.error {
+            border-color: var(--problem);
+            background: var(--problem-light);
+        }
+        
+        .mic-monitor-toggle {
+            flex-shrink: 0;
+        }
+        
+        .mic-monitor-label {
+            font-size: 0.9rem;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .mic-monitor-label .device-aliases {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-left: 0.5rem;
+        }
+        
+        /* Inline level meter for mic monitor rows */
+        .mic-level-meter {
+            height: 20px;
+            background: linear-gradient(90deg, 
+                #1a3d1a 0%, #1a3d1a 60%,
+                #3d3d1a 60%, #3d3d1a 85%,
+                #3d1a1a 85%, #3d1a1a 100%
+            );
+            border-radius: 3px;
+            overflow: hidden;
+            position: relative;
+            border: 1px solid #333;
+        }
+        
+        .mic-level-meter-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, 
+                #22c55e 0%, #22c55e 60%,
+                #eab308 60%, #eab308 85%,
+                #ef4444 85%, #ef4444 100%
+            );
+            border-radius: 2px;
+            transition: clip-path 0.03s ease;
+            clip-path: inset(0 100% 0 0);
+        }
+        
+        .mic-level-meter-text {
+            position: absolute;
+            right: 0.5rem;
+            top: 50%;
+            transform: translateY(-50%);
+            font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: white;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+        
+        .mic-level-meter.inactive {
+            opacity: 0.3;
+        }
+        
+        .mic-level-meter.inactive .mic-level-meter-text {
+            color: var(--text-muted);
+            text-shadow: none;
+        }
+        
+        /* Error state tooltip styling */
+        .mic-monitor-row.error .mic-level-meter-text {
+            color: var(--problem);
+            cursor: help;
+        }
+        
+        /* Custom tooltip using data-tooltip to avoid duplicate native tooltips */
+        .mic-level-meter-text[data-tooltip]:hover::after {
+            content: attr(data-tooltip);
+            position: absolute;
+            right: 0;
+            top: 100%;
+            margin-top: 0.25rem;
+            padding: 0.5rem 0.75rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            font-size: 0.8rem;
+            font-weight: normal;
+            color: var(--text);
+            white-space: nowrap;
+            z-index: 10;
+        }
+        
+        /* Mobile: stack label and meter */
+        @media (max-width: 600px) {
+            .mic-monitor-row {
+                grid-template-columns: auto auto 1fr;
+                grid-template-rows: auto auto;
+            }
+            
+            .mic-level-meter {
+                grid-column: 1 / -1;
+                height: 16px;
+            }
+        }
+        
         /* Diagnostic Results Table - stable structure, only status icons change */
         .diagnostic-table {
             width: 100%;
@@ -328,23 +609,29 @@
             background: var(--accent-light);
         }
         
-        /* Fix instructions - shown outside table when needed */
-        .diagnostic-fix {
-            margin-top: 1rem;
-            padding: 0.75rem 1rem;
-            background: var(--problem-light);
-            border-left: 3px solid var(--problem);
-            border-radius: 0 6px 6px 0;
+        /* Inline action/fix area within each diagnostic row */
+        .diag-action {
+            margin-top: 0.5rem;
             font-size: 0.85rem;
         }
         
-        .diagnostic-fix ol {
-            margin: 0.5rem 0 0 1.25rem;
+        .diag-action ol {
+            margin: 0.25rem 0 0 1.25rem;
             padding: 0;
         }
         
-        .diagnostic-fix li {
-            margin: 0.25rem 0;
+        .diag-action li {
+            margin: 0.2rem 0;
+        }
+        
+        .diag-action .btn {
+            margin-top: 0.5rem;
+        }
+        
+        .diag-action-hint {
+            color: var(--text-secondary);
+            font-size: 0.75rem;
+            margin-top: 0.25rem;
         }
         
         /* Status Indicators */
@@ -676,6 +963,29 @@
             background: var(--bg-elevated);
         }
         
+        /* Monitor Screen Styles */
+        .monitor-viz-section {
+            margin-bottom: 1rem;
+        }
+        
+        .monitor-viz-header {
+            display: flex;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+        
+        .monitor-viz-label {
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+        }
+        
+        .monitor-level-container {
+            margin-top: 0.5rem;
+        }
+        
         /* Footer */
         footer {
             text-align: center;
@@ -739,6 +1049,12 @@
                         <div class="journey-desc">Am I loud enough?</div>
                     </div>
                     
+                    <div class="journey-card" data-journey="monitor" role="button" tabindex="0">
+                        <div class="journey-icon">📡</div>
+                        <div class="journey-title">Monitor</div>
+                        <div class="journey-desc">Visualize your audio</div>
+                    </div>
+                    
                     <div class="journey-card" data-journey="privacy" role="button" tabindex="0">
                         <div class="journey-icon">🔐</div>
                         <div class="journey-title">Privacy Check</div>
@@ -767,11 +1083,19 @@
                     </div>
                 </div>
                 
-                <!-- Device Selector (shown after permission) - INPUT/CONTROL area -->
-                <div id="device-selector" style="display: none; margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--border);">
-                    <label for="device-select" style="display: block; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.9rem;">Test this microphone:</label>
-                    <select id="device-select" style="width: 100%; padding: 0.5rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; background: white;">
-                    </select>
+                <!-- Multi-Mic Monitor Panel -->
+                <!-- Toggle switches to enable/disable monitoring per microphone -->
+                <div id="mic-monitor-panel" class="mic-monitor-panel">
+                    <div class="mic-monitor-header">
+                        <span class="mic-monitor-title">Toggle microphones to monitor:</span>
+                        <span id="device-count-badge" class="device-count-badge">Checking...</span>
+                    </div>
+                    <div id="mic-monitor-list" class="mic-monitor-list">
+                        <div class="mic-monitor-row placeholder">
+                            <span class="device-icon">⏳</span>
+                            <span class="device-label">Detecting microphones...</span>
+                        </div>
+                    </div>
                 </div>
                 
                 <!-- Diagnostic Results Table - OUTPUT area, stable structure -->
@@ -788,6 +1112,7 @@
                             <td class="diag-test">
                                 <div class="diag-name">Browser Support</div>
                                 <div class="diag-detail"></div>
+                                <div class="diag-action" style="display: none;"></div>
                             </td>
                             <td class="diag-status"><span class="diag-icon">⏸️</span></td>
                         </tr>
@@ -795,6 +1120,7 @@
                             <td class="diag-test">
                                 <div class="diag-name">Permission Status</div>
                                 <div class="diag-detail"></div>
+                                <div class="diag-action" style="display: none;"></div>
                             </td>
                             <td class="diag-status"><span class="diag-icon">⏸️</span></td>
                         </tr>
@@ -802,6 +1128,7 @@
                             <td class="diag-test">
                                 <div class="diag-name">Microphone Detection</div>
                                 <div class="diag-detail"></div>
+                                <div class="diag-action" style="display: none;"></div>
                             </td>
                             <td class="diag-status"><span class="diag-icon">⏸️</span></td>
                         </tr>
@@ -812,6 +1139,7 @@
                             <td class="diag-test">
                                 <div class="diag-name">Microphone Access</div>
                                 <div class="diag-detail"></div>
+                                <div class="diag-action" style="display: none;"></div>
                             </td>
                             <td class="diag-status"><span class="diag-icon">⏸️</span></td>
                         </tr>
@@ -819,119 +1147,33 @@
                             <td class="diag-test">
                                 <div class="diag-name">Audio Signal</div>
                                 <div class="diag-detail"></div>
+                                <div class="diag-action" style="display: none;"></div>
                             </td>
                             <td class="diag-status"><span class="diag-icon">⏸️</span></td>
                         </tr>
                     </tbody>
                 </table>
                 
-                <!-- Fix instructions (shown when a test fails) -->
-                <div id="diagnostic-fix" class="diagnostic-fix" style="display: none;">
-                </div>
-                
-                <!-- Visualizer Section (shown when working) -->
+                <!-- Actions Section (shown after diagnostics pass) -->
                 <div id="visualizer-section" style="display: none;">
-                    <p style="margin-bottom: 0.75rem; color: var(--text-secondary);">
-                        Speak or make a sound:
-                    </p>
                     
-                    <!-- Spectrogram Canvas -->
-                    <div class="spectrogram-container" style="margin-bottom: 1rem; display: flex; gap: 0.5rem;">
-                        <div style="display: flex; flex-direction: column; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); padding: 2px 0;">
-                            <span>High</span>
-                            <span>Low</span>
-                        </div>
-                        <div style="flex: 1;">
-                            <canvas id="spectrogram-canvas" width="500" height="100" style="width: 100%; height: 100px; border-radius: 4px; background: #0a0a0a;"></canvas>
-                            <div style="text-align: center; font-size: 0.65rem; color: var(--text-muted); margin-top: 0.25rem;">
-                                ← time (scrolls left)
+                    <!-- Link to Monitor for detailed visualization and playback -->
+                    <div class="monitor-link-section" style="margin-top: 1rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span style="font-size: 1.5rem;">📡</span>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">Want more detail?</div>
+                                <div style="font-size: 0.85rem; color: var(--text-secondary);">Spectrogram, record & playback, and more</div>
                             </div>
+                            <a href="#" id="link-open-monitor" class="btn btn-secondary btn-small">
+                                Open Monitor →
+                            </a>
                         </div>
                     </div>
-                    
-                    <!-- Level Meter -->
-                    <div class="visualizer-container">
-                        <div class="level-bar-container">
-                            <div id="level-bar" class="level-bar"></div>
-                            <span id="level-text" class="level-text">0%</span>
-                        </div>
-                    </div>
-                    
-                    <!-- Playback Feature -->
-                    <div id="playback-container" style="display: none; margin-top: 1.5rem;">
-                        <!-- Playback record prompt -->
-                        <div id="playback-record-prompt" class="playback-section">
-                            <p style="color: var(--text-secondary); margin-bottom: 0.75rem; font-size: 0.9rem;">
-                                Hear what you sound like to others
-                            </p>
-                            <button id="btn-start-playback-record" class="btn btn-secondary" style="width: 100%;">
-                                🔊 Record & Play Back (5 sec)
-                            </button>
-                            <p style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.5rem;">
-                                🔒 Recording stays in your browser and is deleted when you leave
-                            </p>
-                        </div>
-                        
-                        <!-- Countdown state -->
-                        <div id="playback-countdown" class="playback-section" style="display: none; text-align: center;">
-                            <p style="color: var(--text-secondary); margin-bottom: 0.5rem;">Get ready to speak...</p>
-                            <div id="countdown-number" class="countdown-display">3</div>
-                        </div>
-                        
-                        <!-- Recording state -->
-                        <div id="playback-recording" class="playback-section" style="display: none; text-align: center;">
-                            <div class="recording-indicator">
-                                <span class="recording-dot"></span>
-                                <span>Recording...</span>
-                            </div>
-                            <div id="recording-timer" style="font-size: 1.5rem; font-weight: bold; margin: 0.5rem 0;">5</div>
-                            <p style="color: var(--text-secondary); font-size: 0.85rem;">Speak now!</p>
-                        </div>
-                        
-                        <!-- Ready to play state -->
-                        <div id="playback-ready" class="playback-section" style="display: none;">
-                            <div id="playback-warning" class="status-card warning" style="display: none; margin-bottom: 1rem;">
-                                <span class="status-icon">🔇</span>
-                                <div class="status-text">
-                                    <div class="status-title">We didn't hear much</div>
-                                    <div class="status-detail">
-                                        Your mic may be too quiet. 
-                                        <a href="#" id="link-playback-level-check" style="color: var(--accent);">Run a Level Check</a> to diagnose.
-                                    </div>
-                                </div>
-                            </div>
-                            <div class="btn-group" style="justify-content: center;">
-                                <button id="btn-play-recording" class="btn btn-primary">
-                                    ▶️ Play Recording
-                                </button>
-                                <button id="btn-record-again" class="btn btn-secondary">
-                                    🔄 Record Again
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- Playing state -->
-                        <div id="playback-playing" class="playback-section" style="display: none; text-align: center;">
-                            <div style="font-size: 1.25rem; margin-bottom: 0.5rem;">🔊 Playing...</div>
-                            <button id="btn-stop-playback" class="btn btn-secondary btn-small">
-                                ⏹️ Stop
-                            </button>
-                        </div>
-                        
-                        <!-- Hidden audio element -->
-                        <audio id="playback-audio" style="display: none;"></audio>
-                    </div>
-                    
-                    <button id="btn-stop-test" class="btn btn-secondary" style="margin-top: 1rem; width: 100%;">
-                        ⏹️ Stop Test
-                    </button>
                 </div>
                 
-                <!-- Action Buttons -->
+                <!-- Action Buttons (retry only - permission button is now inline) -->
                 <div id="test-actions" style="margin-top: 1rem;">
-                    <button id="btn-grant-permission" class="btn btn-primary btn-large" style="display: none;">
-                        🎤 Grant Microphone Access
-                    </button>
                     <button id="btn-retry-test" class="btn btn-secondary btn-large" style="display: none;">
                         🔄 Try Again
                     </button>
@@ -1030,7 +1272,140 @@
             </div>
         </div>
 
-        <!-- Screen 4: Privacy Check -->
+        <!-- Screen 4: Audio Monitor -->
+        <div id="screen-monitor" class="screen">
+            <a href="#" class="back-link" onclick="window.MicCheck.stopMonitor(); window.MicCheck.showScreen('screen-home'); return false;">← Back</a>
+            
+            <div class="card">
+                <div class="card-header">
+                    <span class="card-icon">📡</span>
+                    <div>
+                        <div class="card-title">Audio Monitor</div>
+                        <div class="card-subtitle">Visualize your microphone input</div>
+                    </div>
+                </div>
+                
+                <div class="monitor-device-selector" style="margin-bottom: 1.5rem;">
+                    <label for="monitor-device-select" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Microphone</label>
+                    <select id="monitor-device-select" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; background: white;">
+                        <option value="">Select microphone...</option>
+                    </select>
+                </div>
+                
+                <!-- Spectrogram Visualization -->
+                <div class="monitor-viz-section">
+                    <div class="monitor-viz-header">
+                        <span class="monitor-viz-label">Spectrogram</span>
+                    </div>
+                    <div class="spectrogram-container" style="display: flex; gap: 0.5rem;">
+                        <div style="display: flex; flex-direction: column; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); padding: 2px 0;">
+                            <span>High</span>
+                            <span>Low</span>
+                        </div>
+                        <div style="flex: 1;">
+                            <canvas id="monitor-spectrogram-canvas" width="600" height="120" style="width: 100%; height: 120px; border-radius: 4px; background: #0a0a0a;"></canvas>
+                            <div style="text-align: center; font-size: 0.65rem; color: var(--text-muted); margin-top: 0.25rem;">
+                                ← time (scrolls left)
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Level Meter -->
+                <div class="monitor-viz-section" style="margin-top: 1.5rem;">
+                    <div class="monitor-viz-header">
+                        <span class="monitor-viz-label">Level</span>
+                    </div>
+                    <div class="monitor-level-container">
+                        <div class="level-bar-container">
+                            <div id="monitor-level-bar" class="level-bar"></div>
+                            <span id="monitor-level-text" class="level-text">-- dB</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Playback Feature -->
+                <div class="monitor-viz-section" style="margin-top: 1.5rem;">
+                    <div class="monitor-viz-header">
+                        <span class="monitor-viz-label">Record & Playback</span>
+                    </div>
+                    
+                    <div id="playback-container" style="margin-top: 0.5rem;">
+                        <!-- Playback record prompt -->
+                        <div id="playback-record-prompt" class="playback-section">
+                            <p style="color: var(--text-secondary); margin-bottom: 0.75rem; font-size: 0.9rem;">
+                                Hear what you sound like to others
+                            </p>
+                            <button id="btn-start-playback-record" class="btn btn-secondary" style="width: 100%;">
+                                🔊 Record & Play Back (5 sec)
+                            </button>
+                            <p style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.5rem;">
+                                🔒 Recording stays in your browser and is deleted when you leave
+                            </p>
+                        </div>
+                        
+                        <!-- Countdown state -->
+                        <div id="playback-countdown" class="playback-section" style="display: none; text-align: center;">
+                            <p style="color: var(--text-secondary); margin-bottom: 0.5rem;">Get ready to speak...</p>
+                            <div id="countdown-number" class="countdown-display">3</div>
+                        </div>
+                        
+                        <!-- Recording state -->
+                        <div id="playback-recording" class="playback-section" style="display: none; text-align: center;">
+                            <div class="recording-indicator">
+                                <span class="recording-dot"></span>
+                                <span>Recording...</span>
+                            </div>
+                            <div id="recording-timer" style="font-size: 1.5rem; font-weight: bold; margin: 0.5rem 0;">5</div>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem;">Speak now!</p>
+                        </div>
+                        
+                        <!-- Ready to play state -->
+                        <div id="playback-ready" class="playback-section" style="display: none;">
+                            <div id="playback-warning" class="status-card warning" style="display: none; margin-bottom: 1rem;">
+                                <span class="status-icon">🔇</span>
+                                <div class="status-text">
+                                    <div class="status-title">We didn't hear much</div>
+                                    <div class="status-detail">
+                                        Your mic may be too quiet. 
+                                        <a href="#" id="link-playback-level-check" style="color: var(--accent);">Run a Level Check</a> to diagnose.
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="btn-group" style="justify-content: center;">
+                                <button id="btn-play-recording" class="btn btn-primary">
+                                    ▶️ Play Recording
+                                </button>
+                                <button id="btn-record-again" class="btn btn-secondary">
+                                    🔄 Record Again
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Playing state -->
+                        <div id="playback-playing" class="playback-section" style="display: none; text-align: center;">
+                            <div style="font-size: 1.25rem; margin-bottom: 0.5rem;">🔊 Playing...</div>
+                            <button id="btn-stop-playback" class="btn btn-secondary btn-small">
+                                ⏹️ Stop
+                            </button>
+                        </div>
+                        
+                        <!-- Hidden audio element -->
+                        <audio id="playback-audio" style="display: none;"></audio>
+                    </div>
+                </div>
+                
+                <!-- Coming Soon Placeholder -->
+                <div class="monitor-coming-soon" style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px; text-align: center;">
+                    <span style="font-size: 1.25rem;">🔮</span>
+                    <div style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.5rem;">
+                        <strong>Coming soon:</strong> Waveform • Frequency spectrum • Stereo field
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Screen 5: Privacy Check -->
         <div id="screen-privacy" class="screen">
             <a href="#" class="back-link" onclick="window.MicCheck.showScreen('screen-home'); return false;">← Back</a>
             

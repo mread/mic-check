@@ -14,9 +14,13 @@
  * 
  * After stream-acquisition succeeds, we update this result to 'pass' regardless
  * of what Permissions API reported (trust actual behavior over API state).
+ * 
+ * BROWSER QUIRK HANDLING:
+ * When we detect private browsing, we inform the user that permissions won't
+ * be saved. This helps explain why they're prompted again each session.
  */
 
-import { detectBrowser, getResetInstructions } from '../browser.js';
+import { detectBrowser, getResetInstructions, detectPrivateBrowsing } from '../browser.js';
 
 export const diagnostic = {
     id: 'permission-state',
@@ -32,10 +36,14 @@ export const diagnostic = {
      */
     async test(context) {
         const browser = detectBrowser();
+        const privateBrowsing = await detectPrivateBrowsing();
+        
         const details = {
             permissionApiSupported: false,
             state: 'unknown',
-            browser: browser.name
+            browser: browser.name,
+            isPrivateBrowsing: privateBrowsing.isPrivate,
+            privateBrowsingConfidence: privateBrowsing.confidence
         };
         
         // Check if Permissions API is available
@@ -61,6 +69,14 @@ export const diagnostic = {
             
             switch (result.state) {
                 case 'granted':
+                    // If in private mode, inform user that permission won't persist
+                    if (privateBrowsing.isPrivate && privateBrowsing.confidence !== 'low') {
+                        return {
+                            status: 'pass',
+                            message: 'Permission granted (private browsing — won\'t be saved)',
+                            details
+                        };
+                    }
                     return {
                         status: 'pass',
                         message: 'Microphone permission granted',
@@ -76,10 +92,18 @@ export const diagnostic = {
                     };
                     
                 case 'prompt':
-                    // No fix needed - the next diagnostic will trigger the permission prompt
+                    // User needs to grant permission - show clear action
+                    // If in private mode, explain why they need to grant again
+                    if (privateBrowsing.isPrivate && privateBrowsing.confidence !== 'low') {
+                        return {
+                            status: 'pending',
+                            message: 'Permission needed (private browsing — not saved between sessions)',
+                            details
+                        };
+                    }
                     return {
-                        status: 'info',
-                        message: 'Requesting permission...',
+                        status: 'pending',
+                        message: 'Permission needed — click button below',
                         details
                     };
                     
