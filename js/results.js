@@ -13,7 +13,7 @@
  */
 
 import { QUALITY_REFERENCE, AGC_REFERENCE, formatDb, formatLufs, getQualityRating } from './standards.js';
-import { qualityTestData } from './audio.js';
+import { levelCheckState } from './audio.js';
 import { escapeHtml } from './utils.js';
 
 /**
@@ -21,10 +21,10 @@ import { escapeHtml } from './utils.js';
  */
 export function displayQualityResults() {
     const data = {
-        noiseFloor: qualityTestData.noiseFloorDb,
-        voiceLufs: qualityTestData.voiceLufs,
-        peakLevel: qualityTestData.voicePeakDb,
-        snr: qualityTestData.snr
+        noiseFloor: levelCheckState.noiseFloorDb,
+        voiceLufs: levelCheckState.voiceLufs,
+        peakLevel: levelCheckState.voicePeakDb,
+        snr: levelCheckState.snr
     };
     
     const resultsEl = document.getElementById('quality-results');
@@ -35,7 +35,7 @@ export function displayQualityResults() {
     resultsEl.style.display = 'block';
     
     // Check AGC status - this changes how we interpret results
-    const agcWasEnabled = qualityTestData.agcEnabled === true;
+    const agcWasEnabled = levelCheckState.agcEnabled === true;
     
     // Determine ratings based on AGC state
     // With AGC ON: Different expectations (AGC normalizes levels, prevents clipping)
@@ -82,7 +82,7 @@ export function displayQualityResults() {
     const snrRating = getQualityRating(data.snr, QUALITY_REFERENCE.snr, true);
     
     // Check for stereo issues (most impactful issue we can detect)
-    const hasStereoIssue = qualityTestData.channelBalance?.hasDeadChannel;
+    const hasStereoIssue = levelCheckState.channelBalance?.hasDeadChannel;
     
     // Determine overall status
     const isGood = !hasStereoIssue && 
@@ -174,7 +174,7 @@ export function displayQualityResults() {
                 ${headerDetail}
             </div>
             <div style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">
-                ${escapeHtml(qualityTestData.deviceLabel) || 'Unknown microphone'}
+                ${escapeHtml(levelCheckState.deviceLabel) || 'Unknown microphone'}
             </div>
         </div>
         

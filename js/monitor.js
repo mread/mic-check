@@ -9,6 +9,7 @@
 
 import { getRmsFromAnalyser, cleanupAudioResources, populateDeviceDropdown } from './utils.js';
 import { isChromiumBased } from './browser.js';
+import { linearToDb } from './standards.js';
 
 /**
  * State for the monitor screen
@@ -137,9 +138,9 @@ export function startVisualization(spectrogramCanvas, levelBar, levelText) {
             const rms = getRmsFromAnalyser(monitorScreenState.analyser);
             const level = Math.min(100, rms * 250);
             
-            // Calculate dB
-            const db = rms > 0 ? 20 * Math.log10(rms) : -Infinity;
-            const dbDisplay = db > -60 ? `${Math.round(db)} dB` : '-∞ dB';
+            // Calculate dB using shared utility
+            const db = linearToDb(rms);
+            const dbDisplay = db <= -60 ? '-∞ dB' : `${Math.round(db)} dB`;
             
             // Update UI
             levelBar.style.clipPath = `inset(0 ${100 - level}% 0 0)`;

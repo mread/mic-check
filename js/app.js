@@ -27,9 +27,10 @@ import {
 } from './standards.js';
 
 import { 
-    qualityTestData,
+    levelCheckState,
     resetQualityTestData,
     requestMicAccess,
+    ensurePermissionAndLabels,
     initQualityAudio,
     stopQualityAudio,
     sampleChannels,
@@ -621,21 +622,8 @@ async function openMonitor(deviceId) {
 async function initMonitorScreen() {
     const dropdown = document.getElementById('monitor-device-select');
     
-    // Check if we have labels (permission already granted)
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const audioInputs = devices.filter(d => d.kind === 'audioinput');
-    let hasLabels = audioInputs.some(d => d.label && d.label.length > 0);
-    
-    // If no labels, request permission first
-    if (!hasLabels && audioInputs.length > 0) {
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            stream.getTracks().forEach(track => track.stop());
-            hasLabels = true;
-        } catch (err) {
-            console.log('Permission denied for Monitor device list:', err.name);
-        }
-    }
+    // Ensure we have permission and labels before populating dropdown
+    await ensurePermissionAndLabels();
     
     // Now populate device dropdown (with labels if we have permission)
     await populateMonitorDeviceDropdown(dropdown, selectedMonitorDeviceId);
@@ -937,12 +925,6 @@ async function runPrivacyCheck() {
 }
 
 // ============================================
-// Level Check (Quality Analysis)
-// ============================================
-// Keep existing level check functionality - it's a separate "pro" tool
-// This section maintains the original quality analysis flow
-
-// ============================================
 // Event Listeners
 // ============================================
 function setupListeners() {
@@ -1059,28 +1041,11 @@ function setupListeners() {
 async function initLevelCheck() {
     const select = document.getElementById('quality-device-select');
     
-    // First, try to populate the list
+    // Ensure we have permission and labels before populating dropdown
+    await ensurePermissionAndLabels();
+    
+    // Now populate device dropdown (with labels if we have permission)
     await populateDeviceList(select);
-    
-    // Check if we got labels (permission was already granted)
-    // If not, we need to request permission to get device names
-    const devices = await navigator.mediaDevices.enumerateDevices();
-    const audioInputs = devices.filter(d => d.kind === 'audioinput');
-    const hasLabels = audioInputs.some(d => d.label && d.label.length > 0);
-    
-    if (!hasLabels && audioInputs.length > 0) {
-        // Request permission by getting a temporary stream
-        try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            // Stop the stream immediately - we just needed the permission
-            stream.getTracks().forEach(track => track.stop());
-            // Now repopulate with labels
-            await populateDeviceList(select);
-        } catch (err) {
-            // User denied permission - leave as "X microphones detected"
-            console.log('Permission denied for Level Check device list:', err.name);
-        }
-    }
 }
 
 let levelCheckAnimationId = null;
@@ -1091,7 +1056,7 @@ async function startQualityTest() {
     document.getElementById('quality-results').style.display = 'none';
     
     resetQualityTestData();
-    qualityTestData.isRunning = true;
+    levelCheckState.isRunning = true;
     
     document.getElementById('silence-visualizer').style.display = 'none';
     document.getElementById('silence-result').style.display = 'none';
@@ -1110,11 +1075,11 @@ async function startSilenceRecording() {
     // Store user's AGC preference for voice phase, but always use AGC OFF for silence
     // This gives us the true noise floor, not the AGC-boosted noise floor
     const userAgcPreference = document.getElementById('agc-toggle')?.checked || false;
-    qualityTestData.userAgcPreference = userAgcPreference;
+    levelCheckState.userAgcPreference = userAgcPreference;
     
     const deviceSelect = document.getElementById('quality-device-select');
     const deviceId = deviceSelect?.value || '';
-    qualityTestData.selectedDeviceId = deviceId;
+    levelCheckState.selectedDeviceId = deviceId;
     
     // Always record silence with AGC OFF for accurate noise floor measurement
     const success = await initQualityAudio(false, deviceId);
@@ -1135,18 +1100,18 @@ async function startSilenceRecording() {
     updateQualityDeviceInfo('silence');
     updateAgcStatusBar(false, '— measuring true noise floor');
     
-    qualityTestData.noiseFloorSamples = [];
+    levelCheckState.noiseFloorSamples = [];
     const duration = 5000;
     const startTime = Date.now();
     
     function measure() {
-        if (!qualityTestData.isRunning) return;
+        if (!levelCheckState.isRunning) return;
         
         const elapsed = Date.now() - startTime;
-        const rms = getRmsFromAnalyser(qualityTestData.analyser);
+        const rms = getRmsFromAnalyser(levelCheckState.analyser);
         const db = linearToDb(rms);
         
-        qualityTestData.noiseFloorSamples.push(rms);
+        levelCheckState.noiseFloorSamples.push(rms);
         
         const percent = Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
         document.getElementById('silence-level-bar').style.clipPath = `inset(0 ${100 - percent}% 0 0)`;
@@ -1171,12 +1136,12 @@ function updateQualityDeviceInfo(phase = 'silence') {
     const nameEl = document.getElementById('quality-device-name');
     const settingsEl = document.getElementById('quality-device-settings');
     
-    if (!infoEl || !qualityTestData.deviceLabel) return;
+    if (!infoEl || !levelCheckState.deviceLabel) return;
     
     infoEl.style.display = 'block';
-    nameEl.textContent = qualityTestData.deviceLabel;
+    nameEl.textContent = levelCheckState.deviceLabel;
     
-    const settings = qualityTestData.appliedSettings || {};
+    const settings = levelCheckState.appliedSettings || {};
     const settingsParts = [];
     
     if (settings.sampleRate) {
@@ -1217,14 +1182,14 @@ function updateAgcStatusBar(agcOn, detail = '') {
 }
 
 function finishSilenceRecording() {
-    const sorted = [...qualityTestData.noiseFloorSamples].sort((a, b) => a - b);
+    const sorted = [...levelCheckState.noiseFloorSamples].sort((a, b) => a - b);
     const quietHalf = sorted.slice(0, Math.floor(sorted.length / 2));
     const avgNoise = quietHalf.length > 0 ? quietHalf.reduce((a, b) => a + b, 0) / quietHalf.length : 0;
-    qualityTestData.noiseFloorDb = linearToDb(avgNoise);
+    levelCheckState.noiseFloorDb = linearToDb(avgNoise);
     
     document.getElementById('silence-countdown').textContent = '✓ Complete';
     document.getElementById('silence-result').style.display = 'block';
-    document.getElementById('silence-final-reading').textContent = formatDb(qualityTestData.noiseFloorDb);
+    document.getElementById('silence-final-reading').textContent = formatDb(levelCheckState.noiseFloorDb);
     document.getElementById('btn-next-to-voice').style.display = 'inline-flex';
 }
 
@@ -1233,7 +1198,7 @@ function goToVoiceStep() {
     document.getElementById('quality-step-voice').style.display = 'block';
     
     // Pre-initialize AGC status bar with user's selected preference
-    const agcEnabled = qualityTestData.userAgcPreference || false;
+    const agcEnabled = levelCheckState.userAgcPreference || false;
     updateAgcStatusBar(agcEnabled, agcEnabled ? '— automatic level adjustment' : '— raw microphone signal');
 }
 
@@ -1246,8 +1211,8 @@ async function startVoiceRecording() {
     
     // Reinitialize audio with user's AGC preference for voice phase
     // (Silence phase was recorded with AGC OFF for accurate noise floor)
-    const agcEnabled = qualityTestData.userAgcPreference || false;
-    const deviceId = qualityTestData.selectedDeviceId || '';
+    const agcEnabled = levelCheckState.userAgcPreference || false;
+    const deviceId = levelCheckState.selectedDeviceId || '';
     
     const success = await initQualityAudio(agcEnabled, deviceId);
     if (!success) return;
@@ -1256,28 +1221,28 @@ async function startVoiceRecording() {
     updateQualityDeviceInfo('voice');
     updateAgcStatusBar(agcEnabled, agcEnabled ? '— automatic level adjustment' : '— raw microphone signal');
     
-    qualityTestData.voiceSamples = [];
-    qualityTestData.peakVoice = -Infinity;
-    qualityTestData.isRunning = true;
+    levelCheckState.voiceSamples = [];
+    levelCheckState.peakVoice = -Infinity;
+    levelCheckState.isRunning = true;
     
     const duration = 12000;
     const startTime = Date.now();
     
     function measure() {
-        if (!qualityTestData.isRunning) return;
+        if (!levelCheckState.isRunning) return;
         
         const elapsed = Date.now() - startTime;
-        const rms = getRmsFromAnalyser(qualityTestData.analyser);
+        const rms = getRmsFromAnalyser(levelCheckState.analyser);
         const db = linearToDb(rms);
         
-        qualityTestData.voiceSamples.push(rms);
+        levelCheckState.voiceSamples.push(rms);
         sampleChannels();
         
         // Collect K-weighted samples for ITU-R BS.1770 LUFS measurement
         collectKWeightedSamples();
         
-        if (db > qualityTestData.peakVoice) {
-            qualityTestData.peakVoice = db;
+        if (db > levelCheckState.peakVoice) {
+            levelCheckState.peakVoice = db;
         }
         
         const percent = Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
@@ -1300,17 +1265,17 @@ async function startVoiceRecording() {
 
 function finishVoiceRecording() {
     // Calculate LUFS using ITU-R BS.1770 gating algorithm
-    const lufsResult = calculateGatedLufs(qualityTestData.lufsCollector?.getBlocks() || []);
+    const lufsResult = calculateGatedLufs(levelCheckState.lufsCollector?.getBlocks() || []);
     
     // Handle edge cases from LUFS calculation
     if (lufsResult.error === 'insufficient-data') {
         console.warn('LUFS calculation: insufficient data, need at least 400ms of audio');
-        qualityTestData.voiceLufs = -60; // Fallback to very quiet
+        levelCheckState.voiceLufs = -60; // Fallback to very quiet
     } else if (lufsResult.error === 'no-voice-detected') {
         console.warn('LUFS calculation: no voice detected above -70 LUFS threshold');
-        qualityTestData.voiceLufs = -60;
+        levelCheckState.voiceLufs = -60;
     } else {
-        qualityTestData.voiceLufs = lufsResult.lufs;
+        levelCheckState.voiceLufs = lufsResult.lufs;
         if (lufsResult.warning === 'used-ungated') {
             console.log('LUFS calculation: used ungated measurement (relative gate removed all blocks)');
         }
@@ -1318,15 +1283,15 @@ function finishVoiceRecording() {
     
     console.log('LUFS calculation result:', lufsResult);
     
-    qualityTestData.voicePeakDb = qualityTestData.peakVoice;
-    qualityTestData.snr = qualityTestData.voiceLufs - qualityTestData.noiseFloorDb;
+    levelCheckState.voicePeakDb = levelCheckState.peakVoice;
+    levelCheckState.snr = levelCheckState.voiceLufs - levelCheckState.noiseFloorDb;
     
-    qualityTestData.channelBalance = analyzeChannelBalance();
+    levelCheckState.channelBalance = analyzeChannelBalance();
     
     document.getElementById('voice-countdown').textContent = '✓ Complete';
     document.getElementById('voice-result').style.display = 'block';
-    document.getElementById('voice-lufs-final').textContent = formatLufs(qualityTestData.voiceLufs);
-    document.getElementById('voice-peak-final').textContent = formatDb(qualityTestData.voicePeakDb);
+    document.getElementById('voice-lufs-final').textContent = formatLufs(levelCheckState.voiceLufs);
+    document.getElementById('voice-peak-final').textContent = formatDb(levelCheckState.voicePeakDb);
     document.getElementById('btn-show-results').style.display = 'inline-flex';
     
     stopQualityAudio();
@@ -1374,17 +1339,17 @@ function downloadLevelCheckReport() {
     const report = {
         timestamp: new Date().toISOString(),
         type: 'level-check',
-        device: qualityTestData.deviceLabel,
+        device: levelCheckState.deviceLabel,
         settings: {
-            agcEnabled: qualityTestData.agcEnabled,
-            sampleRate: qualityTestData.contextSampleRate
+            agcEnabled: levelCheckState.agcEnabled,
+            sampleRate: levelCheckState.contextSampleRate
         },
         results: {
-            noiseFloorDb: qualityTestData.noiseFloorDb,
-            voiceLufs: qualityTestData.voiceLufs,
-            voicePeakDb: qualityTestData.voicePeakDb,
-            snr: qualityTestData.snr,
-            channelBalance: qualityTestData.channelBalance
+            noiseFloorDb: levelCheckState.noiseFloorDb,
+            voiceLufs: levelCheckState.voiceLufs,
+            voicePeakDb: levelCheckState.voicePeakDb,
+            snr: levelCheckState.snr,
+            channelBalance: levelCheckState.channelBalance
         }
     };
     

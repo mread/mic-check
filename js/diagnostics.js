@@ -77,7 +77,7 @@
  */
 
 import { QUALITY_REFERENCE, getQualityRating } from './standards.js';
-import { qualityTestData } from './audio.js';
+import { levelCheckState } from './audio.js';
 import { detectBrowser } from './browser.js';
 
 export const TOOL_VERSION = '1.1.0';
@@ -91,20 +91,20 @@ export function generateDiagnosticsReport() {
     const browser = detectBrowser();
     
     // Determine ratings
-    const noiseRating = getQualityRating(qualityTestData.noiseFloorDb, QUALITY_REFERENCE.noiseFloor, false);
-    const snrRating = getQualityRating(qualityTestData.snr, QUALITY_REFERENCE.snr, true);
+    const noiseRating = getQualityRating(levelCheckState.noiseFloorDb, QUALITY_REFERENCE.noiseFloor, false);
+    const snrRating = getQualityRating(levelCheckState.snr, QUALITY_REFERENCE.snr, true);
     
     let lufsRating = 'good';
-    if (qualityTestData.voiceLufs < QUALITY_REFERENCE.lufs.min) {
+    if (levelCheckState.voiceLufs < QUALITY_REFERENCE.lufs.min) {
         lufsRating = 'too-quiet';
-    } else if (qualityTestData.voiceLufs > QUALITY_REFERENCE.lufs.max) {
+    } else if (levelCheckState.voiceLufs > QUALITY_REFERENCE.lufs.max) {
         lufsRating = 'too-loud';
     }
     
     let peakRating = 'good';
-    if (qualityTestData.voicePeakDb < QUALITY_REFERENCE.peak.min - 6) {
+    if (levelCheckState.voicePeakDb < QUALITY_REFERENCE.peak.min - 6) {
         peakRating = 'too-quiet';
-    } else if (qualityTestData.voicePeakDb > QUALITY_REFERENCE.peak.max) {
+    } else if (levelCheckState.voicePeakDb > QUALITY_REFERENCE.peak.max) {
         peakRating = 'clipping';
     }
     
@@ -143,38 +143,38 @@ export function generateDiagnosticsReport() {
             protocol: window.location.protocol
         },
         device: {
-            id: qualityTestData.deviceId || 'unknown',
-            label: qualityTestData.deviceLabel || 'Unknown Microphone',
-            sampleRate: qualityTestData.appliedSettings?.sampleRate || qualityTestData.contextSampleRate || null,
-            channelCount: qualityTestData.appliedSettings?.channelCount || null
+            id: levelCheckState.deviceId || 'unknown',
+            label: levelCheckState.deviceLabel || 'Unknown Microphone',
+            sampleRate: levelCheckState.appliedSettings?.sampleRate || levelCheckState.contextSampleRate || null,
+            channelCount: levelCheckState.appliedSettings?.channelCount || null
         },
         testConfiguration: {
             autoGainControl: {
-                requested: qualityTestData.appliedSettings?.agcRequested ?? qualityTestData.agcEnabled ?? false,
-                reported: qualityTestData.appliedSettings?.autoGainControl ?? null,
+                requested: levelCheckState.appliedSettings?.agcRequested ?? levelCheckState.agcEnabled ?? false,
+                reported: levelCheckState.appliedSettings?.autoGainControl ?? null,
                 note: "Browser-reported values may not reflect actual audio processing"
             },
-            noiseSuppression: qualityTestData.appliedSettings?.noiseSuppression || false,
-            echoCancellation: qualityTestData.appliedSettings?.echoCancellation || false
+            noiseSuppression: levelCheckState.appliedSettings?.noiseSuppression || false,
+            echoCancellation: levelCheckState.appliedSettings?.echoCancellation || false
         },
         measurements: {
             noiseFloor: {
-                valueDbfs: Math.round(qualityTestData.noiseFloorDb * 10) / 10,
+                valueDbfs: Math.round(levelCheckState.noiseFloorDb * 10) / 10,
                 rating: noiseRating,
                 reference: QUALITY_REFERENCE.noiseFloor
             },
             voiceLoudness: {
-                valueLufs: Math.round(qualityTestData.voiceLufs * 10) / 10,
+                valueLufs: Math.round(levelCheckState.voiceLufs * 10) / 10,
                 rating: lufsRating,
                 reference: QUALITY_REFERENCE.lufs
             },
             peakLevel: {
-                valueDbfs: Math.round(qualityTestData.voicePeakDb * 10) / 10,
+                valueDbfs: Math.round(levelCheckState.voicePeakDb * 10) / 10,
                 rating: peakRating,
                 reference: QUALITY_REFERENCE.peak
             },
             signalToNoise: {
-                valueDb: Math.round(qualityTestData.snr * 10) / 10,
+                valueDb: Math.round(levelCheckState.snr * 10) / 10,
                 rating: snrRating,
                 reference: QUALITY_REFERENCE.snr
             }
@@ -183,13 +183,13 @@ export function generateDiagnosticsReport() {
             passed: isGood,
             issues: issues
         },
-        stereoAnalysis: qualityTestData.channelBalance ? {
-            left: qualityTestData.channelBalance.left,
-            right: qualityTestData.channelBalance.right,
-            imbalanceDb: qualityTestData.channelBalance.imbalanceDb,
-            hasDeadChannel: qualityTestData.channelBalance.hasDeadChannel,
-            deadChannelSide: qualityTestData.channelBalance.deadChannelSide,
-            diagnosis: qualityTestData.channelBalance.diagnosis
+        stereoAnalysis: levelCheckState.channelBalance ? {
+            left: levelCheckState.channelBalance.left,
+            right: levelCheckState.channelBalance.right,
+            imbalanceDb: levelCheckState.channelBalance.imbalanceDb,
+            hasDeadChannel: levelCheckState.channelBalance.hasDeadChannel,
+            deadChannelSide: levelCheckState.channelBalance.deadChannelSide,
+            diagnosis: levelCheckState.channelBalance.diagnosis
         } : null
     };
 }

@@ -16,7 +16,7 @@ export { getRmsFromAnalyser };
 /**
  * State for quality test audio
  */
-export const qualityTestData = {
+export const levelCheckState = {
     noiseFloorSamples: [],
     voiceSamples: [],
     peakVoice: -Infinity,
@@ -48,27 +48,27 @@ export const qualityTestData = {
  * Note: Call stopQualityAudio() first to clean up stream/context resources
  */
 export function resetQualityTestData() {
-    qualityTestData.noiseFloorSamples = [];
-    qualityTestData.voiceSamples = [];
-    qualityTestData.peakVoice = -Infinity;
-    qualityTestData.noiseFloorDb = null;
-    qualityTestData.voiceLufs = null;
-    qualityTestData.voicePeakDb = null;
-    qualityTestData.snr = null;
-    qualityTestData.agcEnabled = false;
-    qualityTestData.channelBalance = null;
-    qualityTestData.channelSamples = [];
-    qualityTestData.channelAnalysers = [];
-    qualityTestData.isRunning = false;
-    qualityTestData.deviceId = null;
-    qualityTestData.deviceLabel = null;
-    qualityTestData.appliedSettings = null;
-    qualityTestData.contextSampleRate = null;
-    qualityTestData.userAgcPreference = false;
-    qualityTestData.selectedDeviceId = null;
+    levelCheckState.noiseFloorSamples = [];
+    levelCheckState.voiceSamples = [];
+    levelCheckState.peakVoice = -Infinity;
+    levelCheckState.noiseFloorDb = null;
+    levelCheckState.voiceLufs = null;
+    levelCheckState.voicePeakDb = null;
+    levelCheckState.snr = null;
+    levelCheckState.agcEnabled = false;
+    levelCheckState.channelBalance = null;
+    levelCheckState.channelSamples = [];
+    levelCheckState.channelAnalysers = [];
+    levelCheckState.isRunning = false;
+    levelCheckState.deviceId = null;
+    levelCheckState.deviceLabel = null;
+    levelCheckState.appliedSettings = null;
+    levelCheckState.contextSampleRate = null;
+    levelCheckState.userAgcPreference = false;
+    levelCheckState.selectedDeviceId = null;
     // Reset LUFS collector
-    if (qualityTestData.lufsCollector) {
-        qualityTestData.lufsCollector.reset();
+    if (levelCheckState.lufsCollector) {
+        levelCheckState.lufsCollector.reset();
     }
 }
 
@@ -87,6 +87,31 @@ export async function requestMicAccess(constraints = { audio: true }) {
 }
 
 /**
+ * Ensure we have permission and device labels available.
+ * Gets a temporary stream if needed, then releases it.
+ * Use this before populating device dropdowns when you need labels.
+ * @returns {Promise<{granted: boolean, error?: string}>}
+ */
+export async function ensurePermissionAndLabels() {
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const audioInputs = devices.filter(d => d.kind === 'audioinput');
+        const hasLabels = audioInputs.some(d => d.label && d.label.length > 0);
+        
+        if (hasLabels) {
+            return { granted: true };
+        }
+        
+        // No labels means permission not yet granted — request it
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach(t => t.stop());
+        return { granted: true };
+    } catch (err) {
+        return { granted: false, error: err.name };
+    }
+}
+
+/**
  * Initialize audio for quality analysis
  * @param {boolean} agcEnabled - Whether to enable AGC
  * @param {string} deviceId - Specific device ID to use
@@ -97,7 +122,7 @@ export async function initQualityAudio(agcEnabled = false, deviceId = '') {
         // Clean up any existing resources first to prevent leaks
         stopQualityAudio();
         
-        qualityTestData.agcEnabled = agcEnabled;
+        levelCheckState.agcEnabled = agcEnabled;
         
         const audioConstraints = {
             autoGainControl: agcEnabled,
@@ -115,20 +140,20 @@ export async function initQualityAudio(agcEnabled = false, deviceId = '') {
             audio: audioConstraints
         });
         
-        qualityTestData.stream = stream;
+        levelCheckState.stream = stream;
         
         // Get the track settings to see which device is being used
         const audioTrack = stream.getAudioTracks()[0];
         const settings = audioTrack.getSettings();
         
         // Store device info for display
-        qualityTestData.deviceId = settings.deviceId || 'unknown';
-        qualityTestData.deviceLabel = audioTrack.label || 'Unknown Microphone';
+        levelCheckState.deviceId = settings.deviceId || 'unknown';
+        levelCheckState.deviceLabel = audioTrack.label || 'Unknown Microphone';
         
         // Note: Browser reports whether AGC is applied, but actual implementation
         // varies significantly between browsers, OS, and audio drivers.
         // The "applied" value may not reflect actual audio processing.
-        qualityTestData.appliedSettings = {
+        levelCheckState.appliedSettings = {
             sampleRate: settings.sampleRate,
             channelCount: settings.channelCount,
             autoGainControl: settings.autoGainControl,
@@ -139,57 +164,57 @@ export async function initQualityAudio(agcEnabled = false, deviceId = '') {
             agcReported: settings.autoGainControl
         };
         
-        qualityTestData.audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        await qualityTestData.audioContext.resume();
+        levelCheckState.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        await levelCheckState.audioContext.resume();
         
         // Store sample rate from AudioContext (more reliable than track settings)
-        qualityTestData.contextSampleRate = qualityTestData.audioContext.sampleRate;
+        levelCheckState.contextSampleRate = levelCheckState.audioContext.sampleRate;
         
-        const source = qualityTestData.audioContext.createMediaStreamSource(stream);
+        const source = levelCheckState.audioContext.createMediaStreamSource(stream);
         
         // Main analyser (for combined/mono signal - used for dB display)
-        qualityTestData.analyser = qualityTestData.audioContext.createAnalyser();
-        qualityTestData.analyser.fftSize = 4096;
-        qualityTestData.analyser.smoothingTimeConstant = 0.1;
-        source.connect(qualityTestData.analyser);
+        levelCheckState.analyser = levelCheckState.audioContext.createAnalyser();
+        levelCheckState.analyser.fftSize = 4096;
+        levelCheckState.analyser.smoothingTimeConstant = 0.1;
+        source.connect(levelCheckState.analyser);
         
         // K-weighted signal chain for LUFS measurement (ITU-R BS.1770)
-        const { preFilter, rlbFilter } = createKWeightingFilters(qualityTestData.audioContext);
+        const { preFilter, rlbFilter } = createKWeightingFilters(levelCheckState.audioContext);
         source.connect(preFilter);
         // rlbFilter is already connected to preFilter inside createKWeightingFilters
         
         // K-weighted analyser for LUFS block collection
-        qualityTestData.kWeightedAnalyser = qualityTestData.audioContext.createAnalyser();
-        qualityTestData.kWeightedAnalyser.fftSize = 4096;
-        qualityTestData.kWeightedAnalyser.smoothingTimeConstant = 0;  // No smoothing for accurate samples
-        rlbFilter.connect(qualityTestData.kWeightedAnalyser);
+        levelCheckState.kWeightedAnalyser = levelCheckState.audioContext.createAnalyser();
+        levelCheckState.kWeightedAnalyser.fftSize = 4096;
+        levelCheckState.kWeightedAnalyser.smoothingTimeConstant = 0;  // No smoothing for accurate samples
+        rlbFilter.connect(levelCheckState.kWeightedAnalyser);
         
         // Initialize LUFS block collector with actual sample rate
-        qualityTestData.lufsCollector = new LufsBlockCollector(qualityTestData.contextSampleRate);
+        levelCheckState.lufsCollector = new LufsBlockCollector(levelCheckState.contextSampleRate);
         
         // Set up per-channel analysis for stereo detection
-        const channelCount = qualityTestData.appliedSettings?.channelCount || 1;
-        qualityTestData.channelAnalysers = [];
-        qualityTestData.channelSamples = [];
+        const channelCount = levelCheckState.appliedSettings?.channelCount || 1;
+        levelCheckState.channelAnalysers = [];
+        levelCheckState.channelSamples = [];
         
         if (channelCount >= 2) {
             console.log('Stereo device detected - setting up per-channel analysis');
-            const splitter = qualityTestData.audioContext.createChannelSplitter(2);
+            const splitter = levelCheckState.audioContext.createChannelSplitter(2);
             source.connect(splitter);
             
             for (let i = 0; i < 2; i++) {
-                const channelAnalyser = qualityTestData.audioContext.createAnalyser();
+                const channelAnalyser = levelCheckState.audioContext.createAnalyser();
                 channelAnalyser.fftSize = 4096;
                 channelAnalyser.smoothingTimeConstant = 0.1;
                 splitter.connect(channelAnalyser, i);
-                qualityTestData.channelAnalysers.push(channelAnalyser);
-                qualityTestData.channelSamples.push([]);
+                levelCheckState.channelAnalysers.push(channelAnalyser);
+                levelCheckState.channelSamples.push([]);
             }
         }
         
-        console.log('Quality test using:', qualityTestData.deviceLabel);
-        console.log('Settings:', qualityTestData.appliedSettings);
-        console.log('AudioContext sample rate:', qualityTestData.contextSampleRate);
+        console.log('Quality test using:', levelCheckState.deviceLabel);
+        console.log('Settings:', levelCheckState.appliedSettings);
+        console.log('AudioContext sample rate:', levelCheckState.contextSampleRate);
         console.log('Channel count:', channelCount);
         
         return true;
@@ -205,18 +230,18 @@ export async function initQualityAudio(agcEnabled = false, deviceId = '') {
  * Stop quality audio and clean up resources
  */
 export function stopQualityAudio() {
-    if (qualityTestData.stream) {
-        qualityTestData.stream.getTracks().forEach(t => t.stop());
-        qualityTestData.stream = null;
+    if (levelCheckState.stream) {
+        levelCheckState.stream.getTracks().forEach(t => t.stop());
+        levelCheckState.stream = null;
     }
-    if (qualityTestData.audioContext) {
-        qualityTestData.audioContext.close();
-        qualityTestData.audioContext = null;
+    if (levelCheckState.audioContext) {
+        levelCheckState.audioContext.close();
+        levelCheckState.audioContext = null;
     }
-    qualityTestData.analyser = null;
-    qualityTestData.kWeightedAnalyser = null;
-    qualityTestData.lufsCollector = null;
-    qualityTestData.channelAnalysers = [];
+    levelCheckState.analyser = null;
+    levelCheckState.kWeightedAnalyser = null;
+    levelCheckState.lufsCollector = null;
+    levelCheckState.channelAnalysers = [];
 }
 
 
@@ -224,10 +249,10 @@ export function stopQualityAudio() {
  * Sample each channel separately for stereo analysis
  */
 export function sampleChannels() {
-    if (qualityTestData.channelAnalysers && qualityTestData.channelAnalysers.length >= 2) {
-        for (let i = 0; i < qualityTestData.channelAnalysers.length; i++) {
-            const rms = getRmsFromAnalyser(qualityTestData.channelAnalysers[i]);
-            qualityTestData.channelSamples[i].push(rms);
+    if (levelCheckState.channelAnalysers && levelCheckState.channelAnalysers.length >= 2) {
+        for (let i = 0; i < levelCheckState.channelAnalysers.length; i++) {
+            const rms = getRmsFromAnalyser(levelCheckState.channelAnalysers[i]);
+            levelCheckState.channelSamples[i].push(rms);
         }
     }
 }
@@ -237,15 +262,15 @@ export function sampleChannels() {
  * Call this during voice recording to accumulate samples into blocks
  */
 export function collectKWeightedSamples() {
-    if (!qualityTestData.kWeightedAnalyser || !qualityTestData.lufsCollector) {
+    if (!levelCheckState.kWeightedAnalyser || !levelCheckState.lufsCollector) {
         return;
     }
     
-    const bufferLength = qualityTestData.kWeightedAnalyser.fftSize;
+    const bufferLength = levelCheckState.kWeightedAnalyser.fftSize;
     const dataArray = new Float32Array(bufferLength);
-    qualityTestData.kWeightedAnalyser.getFloatTimeDomainData(dataArray);
+    levelCheckState.kWeightedAnalyser.getFloatTimeDomainData(dataArray);
     
-    qualityTestData.lufsCollector.addSamples(dataArray);
+    levelCheckState.lufsCollector.addSamples(dataArray);
 }
 
 /**
@@ -253,12 +278,12 @@ export function collectKWeightedSamples() {
  * @returns {object|null} Channel balance analysis or null if mono
  */
 export function analyzeChannelBalance() {
-    if (!qualityTestData.channelSamples || qualityTestData.channelSamples.length < 2) {
+    if (!levelCheckState.channelSamples || levelCheckState.channelSamples.length < 2) {
         return null; // Mono device, no channel analysis needed
     }
     
-    const ch1Samples = qualityTestData.channelSamples[0];
-    const ch2Samples = qualityTestData.channelSamples[1];
+    const ch1Samples = levelCheckState.channelSamples[0];
+    const ch2Samples = levelCheckState.channelSamples[1];
     
     if (ch1Samples.length === 0 || ch2Samples.length === 0) {
         return null;

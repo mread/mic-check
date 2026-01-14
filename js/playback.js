@@ -154,10 +154,7 @@ export class PlaybackRecorder {
         this.chunks = [];
     }
     
-    /**
-     * Check if currently recording
-     * @returns {boolean}
-     */
+    /** @returns {boolean} */
     getIsRecording() {
         return this.isRecording;
     }

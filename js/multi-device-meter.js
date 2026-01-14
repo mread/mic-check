@@ -112,9 +112,7 @@ export function initMultiMeter(devices, onLevelUpdate) {
     return deviceMeterState.deduplicatedDevices;
 }
 
-/**
- * Get the deduplicated device list
- */
+/** Get the deduplicated device list */
 export function getDeduplicatedDevices() {
     return deviceMeterState.deduplicatedDevices;
 }
