@@ -73,10 +73,6 @@ export function formatLufs(lufs) {
     return `${lufs.toFixed(1)} LUFS`;
 }
 
-// Note: LUFS calculation is now handled by js/lufs.js which implements
-// ITU-R BS.1770-4 with K-weighting and gating. The old rmsToApproxLufs
-// function has been removed as it was inaccurate (just returned dBFS).
-
 /**
  * Get a quality rating based on a value and reference thresholds
  * @param {number} value - The measured value

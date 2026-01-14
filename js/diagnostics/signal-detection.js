@@ -10,7 +10,8 @@
  * This test requires a stream to already exist in context.
  */
 
-import { isFirefoxBased, getAudioBlockedWarningHtml } from '../browser.js';
+import { isFirefoxBased } from '../browser.js';
+import { getRmsFromAnalyser } from '../utils.js';
 
 export const diagnostic = {
     id: 'signal-detection',
@@ -69,8 +70,6 @@ export const diagnostic = {
             context.source = source;
             
             // Sample audio levels for a short period
-            const bufferLength = analyser.fftSize;
-            const dataArray = new Uint8Array(bufferLength);
             const samples = [];
             const sampleCount = 10; // Number of samples to take
             const sampleInterval = 50; // ms between samples
@@ -78,15 +77,8 @@ export const diagnostic = {
             for (let i = 0; i < sampleCount; i++) {
                 await new Promise(resolve => setTimeout(resolve, sampleInterval));
                 
-                analyser.getByteTimeDomainData(dataArray);
-                
-                // Calculate RMS
-                let sum = 0;
-                for (let j = 0; j < bufferLength; j++) {
-                    const sample = (dataArray[j] - 128) / 128;
-                    sum += sample * sample;
-                }
-                const rms = Math.sqrt(sum / bufferLength);
+                // Use shared RMS function (high precision Float32Array)
+                const rms = getRmsFromAnalyser(analyser);
                 samples.push(rms);
             }
             

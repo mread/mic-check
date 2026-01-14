@@ -14,22 +14,7 @@
 
 import { QUALITY_REFERENCE, AGC_REFERENCE, formatDb, formatLufs, getQualityRating } from './standards.js';
 import { qualityTestData } from './audio.js';
-
-/**
- * Escape HTML special characters to prevent XSS
- * @param {string} str - String to escape
- * @returns {string} Escaped string
- */
-function escapeHtml(str) {
-    if (!str) return '';
-    return str.replace(/[&<>"']/g, c => ({
-        '&': '&amp;',
-        '<': '&lt;',
-        '>': '&gt;',
-        '"': '&quot;',
-        "'": '&#39;'
-    }[c]));
-}
+import { escapeHtml } from './utils.js';
 
 /**
  * Render the level check results to the DOM
@@ -42,7 +27,11 @@ export function displayQualityResults() {
         snr: qualityTestData.snr
     };
     
-    const resultsEl = document.getElementById('quality-results');
+    const resultsEl = document.getElementById('level-check-results') || document.getElementById('quality-results');
+    if (!resultsEl) {
+        console.error('Results container not found');
+        return;
+    }
     resultsEl.style.display = 'block';
     
     // Check AGC status - this changes how we interpret results
