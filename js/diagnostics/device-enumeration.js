@@ -27,6 +27,21 @@ export const diagnostic = {
             devices: []
         };
         
+        // When permission is not granted, browsers return placeholder devices for anti-fingerprinting.
+        // Don't show this unreliable data — it would mislead users into thinking we detected
+        // their microphone when we actually can't see any real device information.
+        // Only show device enumeration when permission is actually 'granted'.
+        if (context.permissionState && context.permissionState !== 'granted') {
+            const message = context.permissionState === 'denied' 
+                ? 'Skipped (permission blocked)'
+                : 'Skipped (permission not yet granted)';
+            return {
+                status: 'skip',
+                message,
+                details
+            };
+        }
+        
         try {
             const allDevices = await navigator.mediaDevices.enumerateDevices();
             const audioInputs = allDevices.filter(d => d.kind === 'audioinput');
