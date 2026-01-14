@@ -9,6 +9,8 @@ LLMs follow examples better than rules. Each principle below includes:
 - **Canonical example** — actual code in this project that exemplifies it
 - **Reference** — authoritative source for deeper understanding
 
+Our principles draw heavily from [Nielsen's 10 Usability Heuristics](https://www.nngroup.com/articles/ten-usability-heuristics/), adapted to mic-check's specific context as a diagnostic tool.
+
 ---
 
 ## Principles
@@ -34,7 +36,7 @@ LLMs follow examples better than rules. Each principle below includes:
 
 All diagnostic rows exist in the DOM from page load. JavaScript updates the icon and detail text—never adds or removes rows.
 
-**Reference:** Nielsen Heuristic #4 (Consistency and Standards)
+**Reference:** [Nielsen Heuristic #4](https://www.nngroup.com/articles/consistency-and-standards/) (Consistency and Standards)
 
 ---
 
@@ -161,7 +163,7 @@ The selected microphone appears only in `#device-select`. There's no separate "C
 </div>
 ```
 
-**Reference:** Nielsen Heuristic #9 (Help users recognize, diagnose, and recover from errors)
+**Reference:** [Nielsen Heuristic #9](https://www.nngroup.com/articles/error-message-guidelines/) (Help users recognize, diagnose, and recover from errors)
 
 ---
 
@@ -182,7 +184,7 @@ The playback warning (above) only appears when:
 
 We do NOT warn about things like "unusual sample rate" that aren't problems.
 
-**Reference:** Nielsen Heuristic #5 (Error prevention); alarm fatigue research
+**Reference:** [Nielsen Heuristic #5](https://www.nngroup.com/articles/slips/) (Error prevention); alarm fatigue research
 
 ---
 
@@ -209,7 +211,81 @@ The "Request Audio Access" button appears inside the Permission Status row, not 
 
 **Anti-pattern to avoid:** Separate "How to fix" panels at the bottom of the page, disconnected from the failing diagnostic.
 
-**Reference:** Gestalt proximity principle; Nielsen Heuristic #6 (Recognition rather than recall)
+**Reference:** Gestalt proximity principle; [Nielsen Heuristic #6](https://www.nngroup.com/articles/recognition-and-recall/)
+
+---
+
+### 9. Plain Language
+
+**Rule:** Use words users would use, not technical terms. When technical terms are necessary, explain them.
+
+**Why:** Users come to fix their mic, not learn audio engineering. Jargon creates barriers and anxiety.
+
+**Canonical Example:**
+
+```905:906:index.html
+<div class="status-title">We didn't hear much</div>
+```
+
+Not "Signal below threshold" or "Insufficient amplitude detected". The phrase "We didn't hear much" is conversational and immediately understandable.
+
+**Anti-pattern to avoid:** Showing "AGC" without explanation, or using terms like "sample rate", "bit depth", "latency" in user-facing messages without context.
+
+**Reference:** [Nielsen Heuristic #2](https://www.nngroup.com/articles/match-system-words-to-real-world/) (Match between system and real world)
+
+---
+
+### 10. Progressive Disclosure
+
+**Rule:** Show essential information first. Technical details should be available but hidden by default.
+
+**Why:** Most users don't need technical details. Showing everything overwhelms and obscures the key message. But power users should be able to dig deeper.
+
+**Canonical Example:**
+
+```984:1001:index.html
+<details style="margin-bottom: 1.5rem; font-size: 0.9rem;">
+    <summary style="cursor: pointer; color: var(--accent); font-weight: 500;">ℹ️ What this test does</summary>
+    <div style="margin-top: 0.75rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px;">
+        <!-- Technical explanation here, hidden by default -->
+    </div>
+</details>
+```
+
+The `<details>` element hides technical explanation until the user explicitly requests it.
+
+**Reference:** [Nielsen Heuristic #8](https://www.nngroup.com/articles/aesthetic-minimalist-design/) (Aesthetic and minimalist design)
+
+---
+
+### 11. Show System Status
+
+**Rule:** During any operation that takes time, show what's happening and how long it will take.
+
+**Why:** Users need feedback that the system is working. Silence creates uncertainty and anxiety.
+
+**Canonical Example:**
+
+```888:901:index.html
+<!-- Countdown state -->
+<div id="playback-countdown" class="playback-section" style="display: none; text-align: center;">
+    <p style="color: var(--text-secondary); margin-bottom: 0.5rem;">Get ready to speak...</p>
+    <div id="countdown-number" class="countdown-display">3</div>
+</div>
+
+<!-- Recording state -->
+<div id="playback-recording" class="playback-section" style="display: none; text-align: center;">
+    <div class="recording-indicator">
+        <span class="recording-dot"></span>
+        <span>Recording...</span>
+    </div>
+    <div id="recording-timer" style="font-size: 1.5rem; font-weight: bold; margin: 0.5rem 0;">5</div>
+</div>
+```
+
+During recording, users see a countdown, a pulsing indicator, and remaining time — never a frozen screen.
+
+**Reference:** [Nielsen Heuristic #1](https://www.nngroup.com/articles/visibility-system-status/) (Visibility of system status)
 
 ---
 
