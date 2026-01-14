@@ -621,7 +621,23 @@ async function openMonitor(deviceId) {
 async function initMonitorScreen() {
     const dropdown = document.getElementById('monitor-device-select');
     
-    // Populate device dropdown
+    // Check if we have labels (permission already granted)
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioInputs = devices.filter(d => d.kind === 'audioinput');
+    let hasLabels = audioInputs.some(d => d.label && d.label.length > 0);
+    
+    // If no labels, request permission first
+    if (!hasLabels && audioInputs.length > 0) {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach(track => track.stop());
+            hasLabels = true;
+        } catch (err) {
+            console.log('Permission denied for Monitor device list:', err.name);
+        }
+    }
+    
+    // Now populate device dropdown (with labels if we have permission)
     await populateMonitorDeviceDropdown(dropdown, selectedMonitorDeviceId);
     
     // Get the device ID to use
@@ -1042,7 +1058,29 @@ function setupListeners() {
 // ============================================
 async function initLevelCheck() {
     const select = document.getElementById('quality-device-select');
+    
+    // First, try to populate the list
     await populateDeviceList(select);
+    
+    // Check if we got labels (permission was already granted)
+    // If not, we need to request permission to get device names
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const audioInputs = devices.filter(d => d.kind === 'audioinput');
+    const hasLabels = audioInputs.some(d => d.label && d.label.length > 0);
+    
+    if (!hasLabels && audioInputs.length > 0) {
+        // Request permission by getting a temporary stream
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            // Stop the stream immediately - we just needed the permission
+            stream.getTracks().forEach(track => track.stop());
+            // Now repopulate with labels
+            await populateDeviceList(select);
+        } catch (err) {
+            // User denied permission - leave as "X microphones detected"
+            console.log('Permission denied for Level Check device list:', err.name);
+        }
+    }
 }
 
 let levelCheckAnimationId = null;
