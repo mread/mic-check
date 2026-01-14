@@ -1022,13 +1022,19 @@ function setupListeners() {
     
     // Level check
     document.getElementById('btn-quality-start')?.addEventListener('click', () => {
-        startLevelCheck();
+        startQualityTest();
     });
     
     document.getElementById('btn-refresh-devices')?.addEventListener('click', async () => {
         const select = document.getElementById('quality-device-select');
         await populateDeviceList(select);
     });
+    
+    // Level check step buttons
+    document.getElementById('btn-start-silence')?.addEventListener('click', startSilenceRecording);
+    document.getElementById('btn-next-to-voice')?.addEventListener('click', goToVoiceStep);
+    document.getElementById('btn-start-voice')?.addEventListener('click', startVoiceRecording);
+    document.getElementById('btn-show-results')?.addEventListener('click', showQualityResults);
 }
 
 // ============================================
@@ -1041,74 +1047,57 @@ async function initLevelCheck() {
 
 let levelCheckAnimationId = null;
 
-async function startLevelCheck() {
-    const deviceSelect = document.getElementById('quality-device-select');
-    const agcToggle = document.getElementById('agc-toggle');
+async function startQualityTest() {
+    document.getElementById('quality-intro').style.display = 'none';
+    document.getElementById('quality-step-silence').style.display = 'block';
+    document.getElementById('quality-results').style.display = 'none';
     
-    const deviceId = deviceSelect.value;
-    const userAgcPreference = agcToggle.checked;
+    resetQualityTestData();
+    qualityTestData.isRunning = true;
     
-    // Store user's AGC preference for voice phase
+    document.getElementById('silence-visualizer').style.display = 'none';
+    document.getElementById('silence-result').style.display = 'none';
+    document.getElementById('btn-start-silence').style.display = 'inline-flex';
+    document.getElementById('btn-next-to-voice').style.display = 'none';
+    document.getElementById('silence-countdown').textContent = '';
+    document.getElementById('silence-final-reading').textContent = '—';
+}
+
+async function startSilenceRecording() {
+    const btn = document.getElementById('btn-start-silence');
+    btn.style.display = 'none';
+    
+    document.getElementById('silence-visualizer').style.display = 'block';
+    
+    // Store user's AGC preference for voice phase, but always use AGC OFF for silence
+    // This gives us the true noise floor, not the AGC-boosted noise floor
+    const userAgcPreference = document.getElementById('agc-toggle')?.checked || false;
     qualityTestData.userAgcPreference = userAgcPreference;
+    
+    const deviceSelect = document.getElementById('quality-device-select');
+    const deviceId = deviceSelect?.value || '';
     qualityTestData.selectedDeviceId = deviceId;
     
-    // Always measure noise floor with AGC OFF for accurate reading
+    // Always record silence with AGC OFF for accurate noise floor measurement
     const success = await initQualityAudio(false, deviceId);
-    
     if (!success) {
-        alert('Failed to access microphone. Please check permissions and try again.');
+        btn.style.display = 'inline-flex';
+        document.getElementById('silence-visualizer').innerHTML = `
+            <div class="status-card problem">
+                <span class="status-icon">❌</span>
+                <div class="status-text">
+                    <div class="status-title">Microphone access denied</div>
+                    <div class="status-detail">Please allow microphone access and try again.</div>
+                </div>
+            </div>
+        `;
         return;
     }
     
-    // Show silence step
-    document.getElementById('level-check-intro').style.display = 'none';
-    document.getElementById('level-check-steps').style.display = 'block';
-    document.getElementById('level-check-steps').innerHTML = renderSilenceStep();
+    updateQualityDeviceInfo('silence');
+    updateAgcStatusBar(false, '— measuring true noise floor');
     
-    // Start silence measurement
-    startSilenceMeasurement();
-}
-
-function renderSilenceStep() {
-    return `
-        <div class="level-check-step" id="silence-step">
-            <div class="status-card info">
-                <span class="status-icon">🤫</span>
-                <div class="status-text">
-                    <div class="status-title">Step 1: Measuring Background Noise</div>
-                    <div class="status-detail">Stay quiet for 5 seconds...</div>
-                </div>
-            </div>
-            
-            <div class="level-meter-container" style="margin: 1.5rem 0;">
-                <div class="level-bar-container">
-                    <div id="silence-level-bar" class="level-bar"></div>
-                    <span id="silence-level-text" class="level-text">--</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-top: 0.5rem;">
-                    <span id="silence-db-reading" style="font-size: 0.85rem; color: var(--text-muted);">-- dB</span>
-                    <span id="silence-countdown" style="font-size: 0.85rem; color: var(--text-muted);">5s</span>
-                </div>
-            </div>
-            
-            <div id="silence-result" style="display: none; margin-top: 1rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px;">
-                <strong>Noise Floor:</strong> <span id="silence-final-reading">--</span>
-            </div>
-            
-            <div style="margin-top: 1rem;">
-                <button id="btn-next-to-voice" class="btn btn-primary" style="display: none;" onclick="window.MicCheck.goToVoiceStep()">
-                    Continue to Voice Test →
-                </button>
-                <button class="btn btn-secondary" onclick="window.MicCheck.stopLevelCheck()">Stop</button>
-            </div>
-        </div>
-    `;
-}
-
-function startSilenceMeasurement() {
     qualityTestData.noiseFloorSamples = [];
-    qualityTestData.isRunning = true;
-    
     const duration = 5000;
     const startTime = Date.now();
     
@@ -1122,20 +1111,15 @@ function startSilenceMeasurement() {
         qualityTestData.noiseFloorSamples.push(rms);
         
         const percent = Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
-        const levelBar = document.getElementById('silence-level-bar');
-        const levelText = document.getElementById('silence-level-text');
-        const dbReading = document.getElementById('silence-db-reading');
-        const countdown = document.getElementById('silence-countdown');
-        
-        if (levelBar) levelBar.style.clipPath = `inset(0 ${100 - percent}% 0 0)`;
-        if (levelText) levelText.textContent = `${Math.round(percent)}%`;
-        if (dbReading) dbReading.textContent = formatDb(db);
+        document.getElementById('silence-level-bar').style.clipPath = `inset(0 ${100 - percent}% 0 0)`;
+        document.getElementById('silence-level-text').textContent = `${Math.round(percent)}%`;
+        document.getElementById('silence-db-reading').textContent = formatDb(db);
         
         const remaining = Math.ceil((duration - elapsed) / 1000);
-        if (countdown) countdown.textContent = remaining > 0 ? `${remaining}s` : '';
+        document.getElementById('silence-countdown').textContent = remaining > 0 ? `${remaining}s` : '';
         
         if (elapsed >= duration) {
-            finishSilenceMeasurement();
+            finishSilenceRecording();
         } else {
             levelCheckAnimationId = requestAnimationFrame(measure);
         }
@@ -1144,94 +1128,95 @@ function startSilenceMeasurement() {
     measure();
 }
 
-function finishSilenceMeasurement() {
-    // Calculate noise floor from quietest half of samples
+function updateQualityDeviceInfo(phase = 'silence') {
+    const infoEl = document.getElementById('quality-device-info');
+    const nameEl = document.getElementById('quality-device-name');
+    const settingsEl = document.getElementById('quality-device-settings');
+    
+    if (!infoEl || !qualityTestData.deviceLabel) return;
+    
+    infoEl.style.display = 'block';
+    nameEl.textContent = qualityTestData.deviceLabel;
+    
+    const settings = qualityTestData.appliedSettings || {};
+    const settingsParts = [];
+    
+    if (settings.sampleRate) {
+        settingsParts.push(`${settings.sampleRate / 1000}kHz`);
+    }
+    if (settings.channelCount) {
+        settingsParts.push(settings.channelCount === 1 ? 'Mono' : `${settings.channelCount}ch`);
+    }
+    
+    // Explain why AGC is off during silence phase
+    if (phase === 'silence') {
+        settingsParts.push('AGC: Off (for accurate noise floor)');
+    } else {
+        settingsParts.push(`AGC: ${settings.autoGainControl ? 'On' : 'Off'}`);
+    }
+    
+    settingsEl.textContent = settingsParts.join(' • ');
+}
+
+/**
+ * Update the persistent AGC status bar
+ * @param {boolean} agcOn - Whether AGC is currently on
+ * @param {string} detail - Additional detail text
+ */
+function updateAgcStatusBar(agcOn, detail = '') {
+    const bar = document.getElementById('agc-status-bar');
+    const icon = document.getElementById('agc-status-icon');
+    const text = document.getElementById('agc-status-text');
+    const detailEl = document.getElementById('agc-status-detail');
+    
+    if (!bar) return;
+    
+    bar.style.display = 'flex';
+    bar.className = `agc-status ${agcOn ? 'agc-on' : 'agc-off'}`;
+    icon.textContent = agcOn ? '🔊' : '🔇';
+    text.textContent = agcOn ? 'AGC: On' : 'AGC: Off';
+    detailEl.textContent = detail;
+}
+
+function finishSilenceRecording() {
     const sorted = [...qualityTestData.noiseFloorSamples].sort((a, b) => a - b);
     const quietHalf = sorted.slice(0, Math.floor(sorted.length / 2));
     const avgNoise = quietHalf.length > 0 ? quietHalf.reduce((a, b) => a + b, 0) / quietHalf.length : 0;
     qualityTestData.noiseFloorDb = linearToDb(avgNoise);
     
-    const countdown = document.getElementById('silence-countdown');
-    const result = document.getElementById('silence-result');
-    const finalReading = document.getElementById('silence-final-reading');
-    const nextBtn = document.getElementById('btn-next-to-voice');
-    
-    if (countdown) countdown.textContent = '✓ Complete';
-    if (result) result.style.display = 'block';
-    if (finalReading) finalReading.textContent = formatDb(qualityTestData.noiseFloorDb);
-    if (nextBtn) nextBtn.style.display = 'inline-flex';
+    document.getElementById('silence-countdown').textContent = '✓ Complete';
+    document.getElementById('silence-result').style.display = 'block';
+    document.getElementById('silence-final-reading').textContent = formatDb(qualityTestData.noiseFloorDb);
+    document.getElementById('btn-next-to-voice').style.display = 'inline-flex';
 }
 
 function goToVoiceStep() {
-    document.getElementById('level-check-steps').innerHTML = renderVoiceStep();
-}
-
-function renderVoiceStep() {
-    const agcText = qualityTestData.userAgcPreference ? 'AGC On' : 'AGC Off';
-    return `
-        <div class="level-check-step" id="voice-step">
-            <div class="status-card info">
-                <span class="status-icon">🗣️</span>
-                <div class="status-text">
-                    <div class="status-title">Step 2: Voice Recording</div>
-                    <div class="status-detail">Speak normally for 12 seconds (${agcText})</div>
-                </div>
-            </div>
-            
-            <div id="voice-pre-start" style="margin: 1.5rem 0;">
-                <p style="color: var(--text-secondary); margin-bottom: 1rem;">
-                    Read this paragraph aloud, or talk about anything at your normal speaking volume:
-                </p>
-                <blockquote style="padding: 1rem; background: var(--bg-muted); border-left: 3px solid var(--accent); border-radius: 4px; font-style: italic; color: var(--text-secondary);">
-                    "The quick brown fox jumps over the lazy dog. One, two, three, four, five, six, seven, eight, nine, ten. Testing, testing, one, two, three..."
-                </blockquote>
-                <button class="btn btn-primary" style="margin-top: 1rem;" onclick="window.MicCheck.startVoiceRecording()">
-                    🎤 Start Recording
-                </button>
-            </div>
-            
-            <div id="voice-visualizer" style="display: none; margin: 1.5rem 0;">
-                <div class="level-bar-container">
-                    <div id="voice-level-bar" class="level-bar"></div>
-                    <span id="voice-level-text" class="level-text">--</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-top: 0.5rem;">
-                    <span id="voice-db-reading" style="font-size: 0.85rem; color: var(--text-muted);">-- dB</span>
-                    <span id="voice-countdown" style="font-size: 0.85rem; color: var(--text-muted);">12s remaining</span>
-                </div>
-            </div>
-            
-            <div id="voice-result" style="display: none; margin-top: 1rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px;">
-                <div><strong>Voice Level:</strong> <span id="voice-lufs-final">--</span></div>
-                <div><strong>Peak:</strong> <span id="voice-peak-final">--</span></div>
-            </div>
-            
-            <div style="margin-top: 1rem;">
-                <button id="btn-show-results" class="btn btn-primary" style="display: none;" onclick="window.MicCheck.showLevelCheckResults()">
-                    View Results →
-                </button>
-                <button class="btn btn-secondary" onclick="window.MicCheck.stopLevelCheck()">Stop</button>
-            </div>
-        </div>
-    `;
+    document.getElementById('quality-step-silence').style.display = 'none';
+    document.getElementById('quality-step-voice').style.display = 'block';
+    
+    // Pre-initialize AGC status bar with user's selected preference
+    const agcEnabled = qualityTestData.userAgcPreference || false;
+    updateAgcStatusBar(agcEnabled, agcEnabled ? '— automatic level adjustment' : '— raw microphone signal');
 }
 
 async function startVoiceRecording() {
+    // Hide the pre-start section with the button
     const preStart = document.getElementById('voice-pre-start');
-    const visualizer = document.getElementById('voice-visualizer');
-    
     if (preStart) preStart.style.display = 'none';
-    if (visualizer) visualizer.style.display = 'block';
     
-    // Reinitialize with user's AGC preference for voice phase
+    document.getElementById('voice-visualizer').style.display = 'block';
+    
+    // Reinitialize audio with user's AGC preference for voice phase
+    // (Silence phase was recorded with AGC OFF for accurate noise floor)
     const agcEnabled = qualityTestData.userAgcPreference || false;
     const deviceId = qualityTestData.selectedDeviceId || '';
     
     const success = await initQualityAudio(agcEnabled, deviceId);
-    if (!success) {
-        alert('Failed to access microphone.');
-        return;
-    }
+    if (!success) return;
+    
+    // Update device info and AGC status to show current settings
+    updateQualityDeviceInfo('voice');
+    updateAgcStatusBar(agcEnabled, agcEnabled ? '— automatic level adjustment' : '— raw microphone signal');
     
     qualityTestData.voiceSamples = [];
     qualityTestData.peakVoice = -Infinity;
@@ -1249,6 +1234,8 @@ async function startVoiceRecording() {
         
         qualityTestData.voiceSamples.push(rms);
         sampleChannels();
+        
+        // Collect K-weighted samples for ITU-R BS.1770 LUFS measurement
         collectKWeightedSamples();
         
         if (db > qualityTestData.peakVoice) {
@@ -1256,17 +1243,12 @@ async function startVoiceRecording() {
         }
         
         const percent = Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
-        const levelBar = document.getElementById('voice-level-bar');
-        const levelText = document.getElementById('voice-level-text');
-        const dbReading = document.getElementById('voice-db-reading');
-        const countdown = document.getElementById('voice-countdown');
-        
-        if (levelBar) levelBar.style.clipPath = `inset(0 ${100 - percent}% 0 0)`;
-        if (levelText) levelText.textContent = `${Math.round(percent)}%`;
-        if (dbReading) dbReading.textContent = formatDb(db);
+        document.getElementById('voice-level-bar').style.clipPath = `inset(0 ${100 - percent}% 0 0)`;
+        document.getElementById('voice-level-text').textContent = `${Math.round(percent)}%`;
+        document.getElementById('voice-db-reading').textContent = formatDb(db);
         
         const remaining = Math.ceil((duration - elapsed) / 1000);
-        if (countdown) countdown.textContent = remaining > 0 ? `${remaining}s remaining` : '';
+        document.getElementById('voice-countdown').textContent = remaining > 0 ? `${remaining}s remaining` : '';
         
         if (elapsed >= duration) {
             finishVoiceRecording();
@@ -1279,43 +1261,104 @@ async function startVoiceRecording() {
 }
 
 function finishVoiceRecording() {
-    // Calculate voice levels from loudest portion
-    const sorted = [...qualityTestData.voiceSamples].sort((a, b) => b - a);
-    const loudPortion = sorted.slice(0, Math.floor(sorted.length * 0.3));
-    const avgVoice = loudPortion.length > 0 ? loudPortion.reduce((a, b) => a + b, 0) / loudPortion.length : 0;
+    // Calculate LUFS using ITU-R BS.1770 gating algorithm
+    const lufsResult = calculateGatedLufs(qualityTestData.lufsCollector?.getBlocks() || []);
     
-    // Calculate LUFS using the K-weighted collector if available
-    if (qualityTestData.lufsCollector && qualityTestData.lufsCollector.blocks.length > 0) {
-        const lufsResult = calculateGatedLufs(qualityTestData.lufsCollector.blocks);
-        qualityTestData.voiceLufs = lufsResult.lufs !== null ? lufsResult.lufs : linearToDb(avgVoice) - 3;
+    // Handle edge cases from LUFS calculation
+    if (lufsResult.error === 'insufficient-data') {
+        console.warn('LUFS calculation: insufficient data, need at least 400ms of audio');
+        qualityTestData.voiceLufs = -60; // Fallback to very quiet
+    } else if (lufsResult.error === 'no-voice-detected') {
+        console.warn('LUFS calculation: no voice detected above -70 LUFS threshold');
+        qualityTestData.voiceLufs = -60;
     } else {
-        // Fallback: approximate LUFS from RMS (less accurate)
-        qualityTestData.voiceLufs = linearToDb(avgVoice) - 3;
+        qualityTestData.voiceLufs = lufsResult.lufs;
+        if (lufsResult.warning === 'used-ungated') {
+            console.log('LUFS calculation: used ungated measurement (relative gate removed all blocks)');
+        }
     }
+    
+    console.log('LUFS calculation result:', lufsResult);
     
     qualityTestData.voicePeakDb = qualityTestData.peakVoice;
     qualityTestData.snr = qualityTestData.voiceLufs - qualityTestData.noiseFloorDb;
+    
     qualityTestData.channelBalance = analyzeChannelBalance();
     
-    const countdown = document.getElementById('voice-countdown');
-    const result = document.getElementById('voice-result');
-    const lufsReading = document.getElementById('voice-lufs-final');
-    const peakReading = document.getElementById('voice-peak-final');
-    const resultsBtn = document.getElementById('btn-show-results');
-    
-    if (countdown) countdown.textContent = '✓ Complete';
-    if (result) result.style.display = 'block';
-    if (lufsReading) lufsReading.textContent = formatLufs(qualityTestData.voiceLufs);
-    if (peakReading) peakReading.textContent = formatDb(qualityTestData.voicePeakDb);
-    if (resultsBtn) resultsBtn.style.display = 'inline-flex';
+    document.getElementById('voice-countdown').textContent = '✓ Complete';
+    document.getElementById('voice-result').style.display = 'block';
+    document.getElementById('voice-lufs-final').textContent = formatLufs(qualityTestData.voiceLufs);
+    document.getElementById('voice-peak-final').textContent = formatDb(qualityTestData.voicePeakDb);
+    document.getElementById('btn-show-results').style.display = 'inline-flex';
     
     stopQualityAudio();
 }
 
-function showLevelCheckResults() {
-    document.getElementById('level-check-steps').style.display = 'none';
-    document.getElementById('level-check-results').style.display = 'block';
+function showQualityResults() {
+    document.getElementById('quality-step-voice').style.display = 'none';
+    document.getElementById('quality-results').style.display = 'block';
     displayQualityResults();
+}
+
+function resetQualityTest() {
+    stopQualityAudio();
+    resetQualityTestData();
+    
+    document.getElementById('quality-intro').style.display = 'block';
+    document.getElementById('quality-step-silence').style.display = 'none';
+    document.getElementById('quality-step-voice').style.display = 'none';
+    document.getElementById('quality-results').style.display = 'none';
+    
+    // Reset UI elements
+    const elementsToReset = [
+        'silence-visualizer', 'silence-result', 'voice-visualizer', 'voice-result'
+    ];
+    elementsToReset.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = 'none';
+    });
+    
+    document.getElementById('btn-start-silence').style.display = 'inline-flex';
+    document.getElementById('btn-next-to-voice').style.display = 'none';
+    document.getElementById('btn-show-results').style.display = 'none';
+    
+    // Hide AGC status bar
+    const agcBar = document.getElementById('agc-status-bar');
+    if (agcBar) agcBar.style.display = 'none';
+    
+    // Reset voice pre-start section
+    const preStart = document.getElementById('voice-pre-start');
+    if (preStart) preStart.style.display = 'block';
+}
+
+function downloadLevelCheckReport() {
+    // Generate and download diagnostics report
+    const report = {
+        timestamp: new Date().toISOString(),
+        type: 'level-check',
+        device: qualityTestData.deviceLabel,
+        settings: {
+            agcEnabled: qualityTestData.agcEnabled,
+            sampleRate: qualityTestData.contextSampleRate
+        },
+        results: {
+            noiseFloorDb: qualityTestData.noiseFloorDb,
+            voiceLufs: qualityTestData.voiceLufs,
+            voicePeakDb: qualityTestData.voicePeakDb,
+            snr: qualityTestData.snr,
+            channelBalance: qualityTestData.channelBalance
+        }
+    };
+    
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mic-check-level-report-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
 export function stopLevelCheck() {
@@ -1352,7 +1395,12 @@ function init() {
         // Level check step functions
         goToVoiceStep,
         startVoiceRecording,
-        showLevelCheckResults
+        showQualityResults,
+        startSilenceRecording,
+        // Results screen functions (with aliases for backward compatibility)
+        resetQualityTest,
+        resetLevelCheck: resetQualityTest,
+        downloadLevelCheckReport
     };
 }
 

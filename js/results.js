@@ -270,10 +270,10 @@ export function displayQualityResults() {
         </details>
         
         <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-            <button onclick="window.MicCheck.resetQualityTest()" class="btn btn-primary">
+            <button onclick="window.MicCheck.resetLevelCheck()" class="btn btn-primary">
                 Test Again
             </button>
-            <button onclick="window.MicCheck.downloadDiagnosticsReport()" class="btn" style="background: var(--bg-muted); border: 1px solid var(--border);">
+            <button onclick="window.MicCheck.downloadLevelCheckReport()" class="btn" style="background: var(--bg-muted); border: 1px solid var(--border);">
                 Download Report
             </button>
         </div>

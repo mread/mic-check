@@ -1208,7 +1208,14 @@
                     </div>
                 </div>
                 
-                <div id="level-check-intro">
+                <!-- Persistent AGC status indicator -->
+                <div id="agc-status-bar" class="agc-status agc-off" style="display: none; margin-bottom: 1rem;">
+                    <span id="agc-status-icon">🔇</span>
+                    <span id="agc-status-text">AGC: Off</span>
+                    <span id="agc-status-detail" class="detail"></span>
+                </div>
+                
+                <div id="quality-intro">
                     <p style="color: var(--text-secondary); margin-bottom: 1rem;">
                         <strong>Are people saying you're too quiet in calls?</strong> This test diagnoses common issues 
                         like stereo misconfiguration, insufficient signal, and background noise.
@@ -1222,13 +1229,20 @@
                             
                             <p style="margin-bottom: 0.75rem;"><strong>Common issues we detect:</strong></p>
                             <ul style="margin: 0 0 0.75rem 1.25rem; color: var(--text-secondary);">
-                                <li><strong>Stereo misconfiguration</strong> — A mono mic set as stereo causes 50% volume loss</li>
+                                <li><strong>Stereo misconfiguration</strong> — A mono mic set as stereo causes 50% volume loss in some browsers</li>
                                 <li><strong>Signal too weak</strong> — Even AGC can't compensate if gain is too low</li>
                                 <li><strong>Background noise</strong> — Makes it hard for others to hear you clearly</li>
                             </ul>
                             
+                            <p style="margin-bottom: 0.75rem;"><strong>If issues are found:</strong> Our upcoming <em>Gain Staging</em> guide will help you 
+                            optimize your hardware and OS settings for the best results.</p>
+                            
                             <p style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--text-muted);">
-                                <strong>Technical note:</strong> We measure LUFS per ITU-R BS.1770-4 — the same standard used by Spotify, YouTube, and broadcast tools.
+                                <strong>For desktop apps:</strong> If you use Discord, OBS, or streaming software, try testing with AGC OFF 
+                                to measure your raw levels against broadcast standards (-14 to -16 LUFS).
+                            </p>
+                            <p style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--text-muted);">
+                                <strong>Technical note:</strong> We measure LUFS per <a href="https://www.itu.int/rec/R-REC-BS.1770" target="_blank" style="color: var(--accent);">ITU-R BS.1770-4</a> — the same standard used by Spotify, YouTube, and broadcast tools. This includes K-weighting filters (for perceptual accuracy), 400ms integration windows, and two-stage gating (to ignore silence). Algorithm structure informed by <a href="https://github.com/goepfert/loudness_adaption_demo" target="_blank" style="color: var(--accent);">goepfert/loudness_adaption_demo</a>.
                             </p>
                         </div>
                     </details>
@@ -1247,28 +1261,103 @@
                         <div>
                             <strong>Audio Processing</strong>
                             <div id="agc-description" style="font-size: 0.85rem; color: var(--text-secondary);">
-                                On = AGC, noise suppression, echo cancellation
+                                On = AGC, noise suppression, echo cancellation (how browser apps hear you)
                             </div>
                         </div>
                         <label class="toggle-switch">
-                            <input type="checkbox" id="agc-toggle" checked>
+                            <input type="checkbox" id="agc-toggle" checked onchange="document.getElementById('agc-description').textContent = this.checked ? 'On = AGC, noise suppression, echo cancellation (how browser apps hear you)' : 'Off = raw microphone signal (for desktop apps, streaming)'">
                             <span class="toggle-slider"></span>
                         </label>
                     </div>
                     
-                    <button id="btn-quality-start" class="btn btn-primary btn-large">
+                    <button id="btn-quality-start" class="btn btn-primary btn-large" style="width: 100%;">
                         Start Level Check
                     </button>
                 </div>
                 
-                <!-- Level Check Steps (populated by JS) -->
-                <div id="level-check-steps" style="display: none;">
-                    <!-- Step content populated by JavaScript -->
+                <!-- Step 1: Silence -->
+                <div id="quality-step-silence" style="display: none;">
+                    <div id="quality-device-info" style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                        🎤 <span id="quality-device-name">—</span>
+                        <span id="quality-device-settings"></span>
+                    </div>
+                    
+                    <h3 style="margin-bottom: 0.5rem;">Step 1: Silence (5 seconds)</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        Stay quiet. We're measuring background noise.
+                    </p>
+                    
+                    <div class="visualizer-container" id="silence-visualizer" style="display: none; margin-bottom: 1rem;">
+                        <div class="level-bar-container">
+                            <div id="silence-level-bar" class="level-bar"></div>
+                            <span id="silence-level-text" class="level-text">0%</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
+                            <span>Silent</span>
+                            <span id="silence-db-reading" style="font-weight: bold;">—</span>
+                            <span>Loud</span>
+                        </div>
+                        <div style="text-align: center; margin-top: 0.75rem; font-size: 1.25rem; font-weight: bold;" id="silence-countdown"></div>
+                    </div>
+                    
+                    <div id="silence-result" style="display: none; margin-bottom: 1rem; padding: 0.75rem; background: var(--bg-muted); border-radius: 8px;">
+                        Noise Floor: <strong id="silence-final-reading">—</strong>
+                    </div>
+                    
+                    <button id="btn-start-silence" class="btn btn-primary btn-large" style="width: 100%;">
+                        Start Silence Recording
+                    </button>
+                    <button id="btn-next-to-voice" class="btn btn-primary btn-large" style="display: none; width: 100%;">
+                        Continue to Voice Test →
+                    </button>
                 </div>
                 
-                <div id="level-check-results" style="display: none;">
-                    <!-- Results populated by JavaScript -->
+                <!-- Step 2: Voice -->
+                <div id="quality-step-voice" style="display: none;">
+                    <h3 style="margin-bottom: 0.5rem;">Step 2: Voice (10 seconds)</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.9rem;">
+                        Read this passage at your normal speaking volume:
+                    </p>
+                    
+                    <blockquote style="background: #fffbf0; border-left: 4px solid #f0c040; padding: 1rem; margin: 0 0 1rem 0; font-style: italic; line-height: 1.6;">
+                        "The rainbow appears when sunlight shines through falling rain. 
+                        People look with awe at the brilliant colors stretching across the sky. 
+                        Vibrant reds blend gently into warm oranges and yellows, 
+                        while cool blues and deep purples fade softly at the edges.
+                        Some say a pot of gold waits at the end, 
+                        but no one has quite found it yet."
+                    </blockquote>
+                    
+                    <div id="voice-pre-start" style="margin-bottom: 1rem;">
+                        <button id="btn-start-voice" class="btn btn-primary btn-large" style="width: 100%;">
+                            🎤 Start Recording (10 seconds)
+                        </button>
+                    </div>
+                    
+                    <div class="visualizer-container" id="voice-visualizer" style="display: none; margin-bottom: 1rem;">
+                        <div class="level-bar-container" style="position: relative;">
+                            <div style="position: absolute; left: 50%; right: 10%; height: 100%; background: rgba(30, 142, 62, 0.15); border-left: 2px dashed #1e8e3e; border-right: 2px dashed #1e8e3e; pointer-events: none;"></div>
+                            <div id="voice-level-bar" class="level-bar"></div>
+                            <span id="voice-level-text" class="level-text">0%</span>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-muted); margin-top: 0.25rem;">
+                            <span>Quiet</span>
+                            <span id="voice-db-reading" style="font-weight: bold;">—</span>
+                            <span>Loud</span>
+                        </div>
+                        <div style="text-align: center; margin-top: 0.75rem; font-size: 1.25rem; font-weight: bold;" id="voice-countdown"></div>
+                    </div>
+                    
+                    <div id="voice-result" style="display: none; margin-bottom: 1rem; padding: 0.75rem; background: var(--bg-muted); border-radius: 8px;">
+                        Voice: <strong id="voice-lufs-final">—</strong> • Peak: <strong id="voice-peak-final">—</strong>
+                    </div>
+                    
+                    <button id="btn-show-results" class="btn btn-primary btn-large" style="display: none; width: 100%;">
+                        View Results →
+                    </button>
                 </div>
+                
+                <div id="quality-results" style="display: none;"></div>
             </div>
         </div>
 
