@@ -27,7 +27,7 @@ export function displayQualityResults() {
         snr: qualityTestData.snr
     };
     
-    const resultsEl = document.getElementById('level-check-results') || document.getElementById('quality-results');
+    const resultsEl = document.getElementById('quality-results');
     if (!resultsEl) {
         console.error('Results container not found');
         return;

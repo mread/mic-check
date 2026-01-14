@@ -81,7 +81,7 @@ import {
     getMonitorAnalyser
 } from './monitor.js';
 
-import { escapeHtml, getRmsFromAnalyser as getRmsUtil } from './utils.js';
+import { escapeHtml } from './utils.js';
 
 // ============================================
 // State
@@ -780,7 +780,7 @@ async function startRecording() {
         // Track peak level using monitor stream or diagnostic context
         const analyser = getMonitorAnalyser();
         if (analyser) {
-            const rms = getRmsUtil(analyser);
+            const rms = getRmsFromAnalyser(analyser);
             if (rms > playbackPeakLevel) {
                 playbackPeakLevel = rms;
             }
@@ -1368,11 +1368,7 @@ export function stopLevelCheck() {
         levelCheckAnimationId = null;
     }
     
-    stopQualityAudio();
-    resetQualityTestData();
-    document.getElementById('level-check-intro').style.display = 'block';
-    document.getElementById('level-check-steps').style.display = 'none';
-    document.getElementById('level-check-results').style.display = 'none';
+    resetQualityTest();
 }
 
 // ============================================
