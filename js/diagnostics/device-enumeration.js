@@ -8,6 +8,8 @@
  * After permission, we get full device labels.
  */
 
+import { getAudioInputDevices } from '../utils.js';
+
 export const diagnostic = {
     id: 'device-enumeration',
     name: 'Microphone Detection',
@@ -42,53 +44,12 @@ export const diagnostic = {
             };
         }
         
-        try {
-            const allDevices = await navigator.mediaDevices.enumerateDevices();
-            const audioInputs = allDevices.filter(d => d.kind === 'audioinput');
-            
-            details.deviceCount = audioInputs.length;
-            details.hasLabels = audioInputs.some(d => d.label && d.label.length > 0);
-            
-            // Store device info (with or without labels)
-            details.devices = audioInputs.map(d => ({
-                deviceId: d.deviceId,
-                label: d.label || '(label hidden until permission granted)',
-                isDefault: d.deviceId === 'default',
-                isCommunications: d.deviceId === 'communications'
-            }));
-            
-            // Store in context for other diagnostics
-            context.devices = audioInputs;
-            context.hasDeviceLabels = details.hasLabels;
-            
-            if (audioInputs.length === 0) {
-                return {
-                    status: 'fail',
-                    message: 'No microphones detected',
-                    details,
-                    fix: 'Check that your microphone is connected and not disabled in your operating system\'s sound settings.'
-                };
-            }
-            
-            // Check if we found the meta-devices (Default, Communications)
-            const hasDefault = audioInputs.some(d => d.deviceId === 'default');
-            const hasCommunications = audioInputs.some(d => d.deviceId === 'communications');
-            details.hasDefaultDevice = hasDefault;
-            details.hasCommunicationsDevice = hasCommunications;
-            
-            const message = details.hasLabels 
-                ? `Found ${audioInputs.length} microphone${audioInputs.length > 1 ? 's' : ''}`
-                : `${audioInputs.length} microphone${audioInputs.length > 1 ? 's' : ''} detected`;
-            
-            return {
-                status: 'pass',
-                message,
-                details
-            };
-            
-        } catch (error) {
-            details.error = error.message;
-            
+        // Use central device enumeration utility (single source of truth)
+        const deviceInfo = await getAudioInputDevices();
+        const { devices: audioInputs, count, hasLabels, error } = deviceInfo;
+        
+        if (error) {
+            details.error = error;
             return {
                 status: 'fail',
                 message: 'Could not enumerate devices',
@@ -96,5 +57,45 @@ export const diagnostic = {
                 fix: 'Your browser may be blocking device access. Check your privacy settings.'
             };
         }
+        
+        details.deviceCount = count;
+        details.hasLabels = hasLabels;
+        
+        // Store device info (with or without labels)
+        details.devices = audioInputs.map(d => ({
+            deviceId: d.deviceId,
+            label: d.label || '(label hidden until permission granted)',
+            isDefault: d.deviceId === 'default',
+            isCommunications: d.deviceId === 'communications'
+        }));
+        
+        // Store in context for other diagnostics
+        context.devices = audioInputs;
+        context.hasDeviceLabels = hasLabels;
+        
+        if (count === 0) {
+            return {
+                status: 'fail',
+                message: 'No microphones detected',
+                details,
+                fix: 'Check that your microphone is connected and not disabled in your operating system\'s sound settings.'
+            };
+        }
+        
+        // Check if we found the meta-devices (Default, Communications)
+        const hasDefault = audioInputs.some(d => d.deviceId === 'default');
+        const hasCommunications = audioInputs.some(d => d.deviceId === 'communications');
+        details.hasDefaultDevice = hasDefault;
+        details.hasCommunicationsDevice = hasCommunications;
+        
+        const message = hasLabels 
+            ? `Found ${count} microphone${count > 1 ? 's' : ''}`
+            : `${count} microphone${count > 1 ? 's' : ''} detected`;
+        
+        return {
+            status: 'pass',
+            message,
+            details
+        };
     }
 };

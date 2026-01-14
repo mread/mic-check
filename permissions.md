@@ -203,6 +203,7 @@ These are shown to users because they're actionable or explain confusing behavio
 |-------|-----------|-----------|
 | Private browsing detected | Permission Status shows "(private browsing — won't be saved)" | Explains why permission is asked each session |
 | Default ≠ Communications device | Device enumeration shows both | Helps Windows users understand their device list |
+| Permission change requires refresh | Level Check error shows "Refresh Page" button | After blocking then unblocking permission, browsers (especially Firefox) may cache the denied state until page reload |
 
 ### Quirks We Handle Silently
 

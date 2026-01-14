@@ -8,7 +8,7 @@
 import { linearToDb } from './standards.js';
 import { createKWeightingFilters, LufsBlockCollector } from './lufs.js';
 import { isChromiumBased, detectBrowser } from './browser.js';
-import { getRmsFromAnalyser, populateDeviceDropdown } from './utils.js';
+import { getRmsFromAnalyser, populateDeviceDropdown, getAudioInputDevices } from './utils.js';
 
 // Re-export getRmsFromAnalyser for backward compatibility
 export { getRmsFromAnalyser };
@@ -94,9 +94,8 @@ export async function requestMicAccess(constraints = { audio: true }) {
  */
 export async function ensurePermissionAndLabels() {
     try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const audioInputs = devices.filter(d => d.kind === 'audioinput');
-        const hasLabels = audioInputs.some(d => d.label && d.label.length > 0);
+        // Use central device enumeration utility
+        const { hasLabels } = await getAudioInputDevices();
         
         if (hasLabels) {
             return { granted: true };

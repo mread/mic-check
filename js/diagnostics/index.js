@@ -187,11 +187,13 @@ export async function runPermissionDiagnostics(context, results, onUpdate) {
         // After stream acquisition succeeds:
         // 1. Update permission-state to 'pass' (fixes Firefox inconsistency where
         //    Permissions API may report 'prompt' even when permission is granted)
-        // 2. Re-run device enumeration to get accurate count with labels
+        // 2. Update context.permissionState so device enumeration won't skip
+        // 3. Re-run device enumeration to get accurate count with labels
         if (diag.id === 'stream-acquisition' && result.status === STATUS.PASS) {
-            // Permission clearly granted if stream works
+            // Permission clearly granted if stream works - update both result AND context
             results['permission-state'].status = STATUS.PASS;
             results['permission-state'].message = 'Microphone permission granted';
+            context.permissionState = 'granted'; // Critical: device-enumeration checks this
             if (onUpdate) onUpdate(results);
             
             await runSingleDiagnostic(deviceEnumeration, context, results, onUpdate);

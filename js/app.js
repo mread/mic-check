@@ -623,10 +623,25 @@ async function initMonitorScreen() {
     const dropdown = document.getElementById('monitor-device-select');
     
     // Ensure we have permission and labels before populating dropdown
-    await ensurePermissionAndLabels();
+    const { granted } = await ensurePermissionAndLabels();
     
-    // Now populate device dropdown (with labels if we have permission)
+    // Populate device dropdown - will show appropriate message based on permission state
     await populateMonitorDeviceDropdown(dropdown, selectedMonitorDeviceId);
+    
+    // If permission was denied, show error state and don't try to start monitor
+    if (!granted) {
+        const spectrogramCanvas = document.getElementById('spectrogram');
+        if (spectrogramCanvas) {
+            const ctx = spectrogramCanvas.getContext('2d');
+            ctx.fillStyle = '#f5f5f5';
+            ctx.fillRect(0, 0, spectrogramCanvas.width, spectrogramCanvas.height);
+            ctx.fillStyle = '#666';
+            ctx.font = '14px system-ui';
+            ctx.textAlign = 'center';
+            ctx.fillText('Microphone access blocked', spectrogramCanvas.width / 2, spectrogramCanvas.height / 2);
+        }
+        return;
+    }
     
     // Get the device ID to use
     const deviceId = dropdown.value || selectedMonitorDeviceId;
@@ -1042,10 +1057,19 @@ async function initLevelCheck() {
     const select = document.getElementById('quality-device-select');
     
     // Ensure we have permission and labels before populating dropdown
-    await ensurePermissionAndLabels();
+    const { granted } = await ensurePermissionAndLabels();
     
-    // Now populate device dropdown (with labels if we have permission)
+    // Populate device dropdown - will show appropriate message based on permission state
     await populateDeviceList(select);
+    
+    // If permission was denied, disable the start button
+    if (!granted) {
+        const startBtn = document.getElementById('btn-quality-start');
+        if (startBtn) {
+            startBtn.disabled = true;
+            startBtn.title = 'Microphone access is blocked';
+        }
+    }
 }
 
 let levelCheckAnimationId = null;
@@ -1084,16 +1108,27 @@ async function startSilenceRecording() {
     // Always record silence with AGC OFF for accurate noise floor measurement
     const success = await initQualityAudio(false, deviceId);
     if (!success) {
-        btn.style.display = 'inline-flex';
         document.getElementById('silence-visualizer').innerHTML = `
             <div class="status-card problem">
                 <span class="status-icon">❌</span>
                 <div class="status-text">
                     <div class="status-title">Microphone access denied</div>
-                    <div class="status-detail">Please allow microphone access and try again.</div>
+                    <div class="status-detail">
+                        Allow microphone access in your browser settings, then <strong>refresh this page</strong> to try again.
+                    </div>
                 </div>
             </div>
+            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                <button id="btn-refresh-page" class="btn btn-primary" style="flex: 1;">
+                    🔄 Refresh Page
+                </button>
+                <button id="btn-retry-level-check" class="btn btn-secondary" style="flex: 1;">
+                    ← Back
+                </button>
+            </div>
         `;
+        document.getElementById('btn-refresh-page')?.addEventListener('click', () => location.reload());
+        document.getElementById('btn-retry-level-check')?.addEventListener('click', resetQualityTest);
         return;
     }
     
@@ -1215,7 +1250,30 @@ async function startVoiceRecording() {
     const deviceId = levelCheckState.selectedDeviceId || '';
     
     const success = await initQualityAudio(agcEnabled, deviceId);
-    if (!success) return;
+    if (!success) {
+        document.getElementById('voice-visualizer').innerHTML = `
+            <div class="status-card problem">
+                <span class="status-icon">❌</span>
+                <div class="status-text">
+                    <div class="status-title">Microphone access denied</div>
+                    <div class="status-detail">
+                        Allow microphone access in your browser settings, then <strong>refresh this page</strong> to try again.
+                    </div>
+                </div>
+            </div>
+            <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                <button id="btn-refresh-page-voice" class="btn btn-primary" style="flex: 1;">
+                    🔄 Refresh Page
+                </button>
+                <button id="btn-retry-level-check-voice" class="btn btn-secondary" style="flex: 1;">
+                    ← Back
+                </button>
+            </div>
+        `;
+        document.getElementById('btn-refresh-page-voice')?.addEventListener('click', () => location.reload());
+        document.getElementById('btn-retry-level-check-voice')?.addEventListener('click', resetQualityTest);
+        return;
+    }
     
     // Update device info and AGC status to show current settings
     updateQualityDeviceInfo('voice');
