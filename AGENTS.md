@@ -43,6 +43,25 @@ python3 -m http.server 8765
 - Downloadable JSON diagnostics
 - Privacy-focused (no server uploads)
 
+## UX Approach — Example-Driven Design
+
+**Before implementing any new UI**, consult [ux-approach.md](ux-approach.md).
+
+This document contains:
+- UX principles with rationale
+- **Canonical code examples** from this codebase for each principle
+- Line numbers pointing to real implementations
+
+**Why examples over rules:** LLMs follow patterns better than abstract guidelines. When you see how a principle is implemented, match that pattern exactly.
+
+**Workflow:**
+1. Identify which principles apply to your change
+2. Find the canonical example for each in `ux-approach.md`
+3. Match the pattern in your implementation
+4. If you create something that exemplifies a principle well, add it to `ux-approach.md`
+
+**When the user corrects a UX issue:** Consider whether it represents a new principle or example worth documenting.
+
 ## Code Review with CodeRabbit
 
 To review uncommitted changes in plain text mode:

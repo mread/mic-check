@@ -191,6 +191,38 @@ For these issues, suggest testing in a private/incognito window first to isolate
 
 ---
 
+## How Mic Check Handles These Quirks
+
+When we encounter browser quirks during development, we consider whether users might also encounter them. Our approach:
+
+### Quirks We Surface as Diagnostics
+
+These are shown to users because they're actionable or explain confusing behavior:
+
+| Quirk | Diagnostic | Why shown |
+|-------|-----------|-----------|
+| Private browsing detected | Permission Status shows "(private browsing — won't be saved)" | Explains why permission is asked each session |
+| Default ≠ Communications device | Device enumeration shows both | Helps Windows users understand their device list |
+
+### Quirks We Handle Silently
+
+These are coded around without user notification because showing them would be more confusing:
+
+| Quirk | How handled | Why silent |
+|-------|-------------|-----------|
+| Firefox Permissions API returns 'prompt' when already granted | Proceed directly with getUserMedia | User sees correct behavior; explaining the quirk adds confusion |
+| Safari per-session permissions | Same as private browsing | User experience is consistent |
+
+### Adding New Quirk Handling
+
+When you discover a quirk:
+1. Document it in this file
+2. Ask: "Would a user be confused by this?"
+3. If yes → create a diagnostic that explains
+4. If no → handle silently with code comment
+
+---
+
 ## Contributing
 
 If you discover browser-specific behaviors not documented here:

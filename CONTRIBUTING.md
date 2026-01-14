@@ -21,17 +21,9 @@
 
 ## UX Guidelines
 
-These principles guide our design decisions. See primary sources for details.
+See **[ux-approach.md](ux-approach.md)** for our UX principles with canonical code examples.
 
-| Principle | Reference |
-|-----------|-----------|
-| Layout stability: fixed structure, only data changes | Nielsen Heuristic #4 (Consistency) |
-| Reading order: Subject → Result ("Browser Support ✓") | Natural language order |
-| Separate input from output: controls above, results below | Form design best practices |
-| No information duplication across UI elements | DRY principle applied to UI |
-| Section headers: smaller, uppercase, muted, more space above | iOS HIG, Material Design 3 |
-| Error messages: what happened, why, how to fix | Nielsen Heuristic #9 |
-| Warnings only when actionable and accurate | Nielsen Heuristic #5 |
+When implementing new UI, find and follow the patterns in that document rather than inventing new approaches.
 
 ## Diagnostic Modules
 
