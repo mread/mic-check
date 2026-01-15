@@ -1237,6 +1237,38 @@
             margin-top: 0.25rem;
         }
         
+        /* Spectrum Analyzer — 700×80px desktop, 60px mobile
+           Bar graph showing frequency content in real-time */
+        .studio-spectrum {
+            margin-bottom: 1.25rem;
+        }
+        
+        .studio-spectrum-container {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .studio-spectrum-canvas-wrap {
+            flex: 1;
+            position: relative;
+        }
+        
+        .studio-spectrum-canvas {
+            width: 100%;
+            height: 80px;  /* Desktop: 80px */
+            border-radius: 4px;
+            background: #0a0a0a;
+        }
+        
+        .studio-spectrum-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+            padding: 0 2px;
+        }
+        
         /* Waveform + Meter Row — oscilloscope on left, vertical meter on right */
         .studio-waveform-row {
             display: flex;
@@ -1549,6 +1581,10 @@
             
             .studio-oscilloscope-canvas {
                 height: 60px;   /* Mobile: reduced from 100px */
+            }
+            
+            .studio-spectrum-canvas {
+                height: 60px;   /* Mobile: reduced from 80px */
             }
             
             .studio-waveform-row {
@@ -2158,6 +2194,25 @@
                                 <!-- Canvas: 700×180px prevents scaling artifacts. CSS controls display size. -->
                                 <canvas id="studio-spectrogram" class="studio-spectrogram-canvas" width="700" height="180"></canvas>
                                 <div class="studio-spectrogram-time">← time</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Frequency Spectrum (Bar Graph) -->
+                    <div class="studio-spectrum">
+                        <div class="studio-section-label">Spectrum</div>
+                        <div class="studio-spectrum-container">
+                            <div class="studio-spectrum-canvas-wrap">
+                                <!-- Canvas: 700×80px matches other widget widths -->
+                                <canvas id="studio-spectrum" class="studio-spectrum-canvas" width="700" height="80"></canvas>
+                            </div>
+                            <div class="studio-spectrum-labels">
+                                <span>100</span>
+                                <span>500</span>
+                                <span>1k</span>
+                                <span>5k</span>
+                                <span>10k</span>
+                                <span>20k</span>
                             </div>
                         </div>
                     </div>

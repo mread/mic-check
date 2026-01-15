@@ -41,6 +41,9 @@ const studioState = {
     spectrogramCtx: null,
     frequencyData: null,
     
+    // Spectrum analyzer
+    spectrumCtx: null,
+    
     // Oscilloscope
     oscilloscopeCtx: null,
     timeDomainData: null,
@@ -211,6 +214,18 @@ export function startVisualization(elements) {
         studioState.spectrogramCtx.fillRect(0, 0, elements.spectrogramCanvas.width, elements.spectrogramCanvas.height);
     }
     
+    // Set up spectrum analyzer canvas (uses same frequencyData as spectrogram)
+    if (elements.spectrumCanvas) {
+        studioState.spectrumCtx = elements.spectrumCanvas.getContext('2d');
+        // Ensure frequencyData is allocated if spectrogram canvas wasn't present
+        if (!studioState.frequencyData) {
+            studioState.frequencyData = new Uint8Array(studioState.analyser.frequencyBinCount);
+        }
+        // Clear with dark background
+        studioState.spectrumCtx.fillStyle = '#0a0a0a';
+        studioState.spectrumCtx.fillRect(0, 0, elements.spectrumCanvas.width, elements.spectrumCanvas.height);
+    }
+    
     // Set up oscilloscope canvas
     if (elements.oscilloscopeCanvas) {
         studioState.oscilloscopeCtx = elements.oscilloscopeCanvas.getContext('2d');
@@ -242,6 +257,20 @@ export function startVisualization(elements) {
                 studioState.spectrogramCtx,
                 elements.spectrogramCanvas,
                 studioState.frequencyData
+            );
+        }
+        
+        // Update spectrum analyzer (uses same frequencyData)
+        if (studioState.spectrumCtx && studioState.frequencyData && elements.spectrumCanvas) {
+            // frequencyData already updated by spectrogram, or update now if spectrogram not present
+            if (!studioState.spectrogramCtx) {
+                studioState.analyser.getByteFrequencyData(studioState.frequencyData);
+            }
+            drawSpectrum(
+                studioState.spectrumCtx,
+                elements.spectrumCanvas,
+                studioState.frequencyData,
+                studioState.audioContext.sampleRate
             );
         }
         
@@ -477,6 +506,83 @@ function drawSpectrogram(ctx, canvas, frequencyData) {
         ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
         const y = height - (i + 1) * binHeight;
         ctx.fillRect(width - 1, y, 1, binHeight + 1);
+    }
+}
+
+/**
+ * Draw spectrum analyzer (frequency bar graph)
+ * 
+ * Canvas dimensions: 700×80px (matches other widget widths)
+ * Mobile: 100%×60px
+ * 
+ * Shows frequency content as vertical bars with logarithmic scaling
+ * to match human hearing perception.
+ */
+function drawSpectrum(ctx, canvas, frequencyData, sampleRate) {
+    const width = canvas.width;
+    const height = canvas.height;
+    const numBins = frequencyData.length;
+    
+    // Clear background
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, width, height);
+    
+    // Frequency resolution: each bin represents sampleRate / (2 * numBins) Hz
+    // At 48kHz with 2048 FFT: ~23.4Hz per bin, max freq = 24kHz
+    const binFrequency = sampleRate / (2 * numBins);
+    const maxFreq = sampleRate / 2;
+    
+    // Use logarithmic scaling for frequency axis (matches human perception)
+    const minLogFreq = Math.log10(80);      // Start at 80Hz
+    const maxLogFreq = Math.log10(20000);   // End at 20kHz
+    const logRange = maxLogFreq - minLogFreq;
+    
+    // Number of bars to draw
+    const numBars = 64;
+    const barWidth = (width / numBars) - 1;
+    const gap = 1;
+    
+    for (let i = 0; i < numBars; i++) {
+        // Map bar position to frequency (logarithmic)
+        const logFreq = minLogFreq + (i / numBars) * logRange;
+        const freq = Math.pow(10, logFreq);
+        
+        // Find corresponding FFT bin
+        const bin = Math.floor(freq / binFrequency);
+        if (bin >= numBins) continue;
+        
+        // Average a few bins for smoother display
+        let sum = 0;
+        let count = 0;
+        const binSpread = Math.max(1, Math.floor(numBins / numBars / 2));
+        for (let j = Math.max(0, bin - binSpread); j <= Math.min(numBins - 1, bin + binSpread); j++) {
+            sum += frequencyData[j];
+            count++;
+        }
+        const value = sum / count;
+        
+        // Calculate bar height (0-255 -> 0-height)
+        const barHeight = (value / 255) * height * 0.95;
+        
+        // Color gradient: green -> yellow -> red based on height
+        const ratio = value / 255;
+        let r, g, b;
+        if (ratio < 0.5) {
+            // Green to yellow
+            r = Math.floor(ratio * 2 * 255);
+            g = 200;
+            b = 50;
+        } else {
+            // Yellow to red
+            r = 255;
+            g = Math.floor((1 - (ratio - 0.5) * 2) * 200);
+            b = 50;
+        }
+        
+        ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+        
+        const x = i * (barWidth + gap);
+        ctx.fillRect(x, height - barHeight, barWidth, barHeight);
     }
 }
 
@@ -788,6 +894,7 @@ export async function cleanupStudio() {
     studioState.deviceId = null;
     studioState.spectrogramCtx = null;
     studioState.frequencyData = null;
+    studioState.spectrumCtx = null;
     studioState.oscilloscopeCtx = null;
     studioState.timeDomainData = null;
     studioState.scopePeakLevel = 0;
