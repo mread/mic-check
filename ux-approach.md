@@ -303,10 +303,21 @@ The Studio page (`#studio`) is a DAW-inspired audio monitor designed to be compe
 
 1. **Transport Bar** — Device selection + record/stop/play controls
 2. **Spectrogram** — Frequency content over time (scrolls left)
-3. **Oscilloscope** — Time-domain waveform (classic scope line)
-4. **Level Meters** — Peak levels with dB values (mono: single meter, stereo: L/R)
-5. **Readouts** — PEAK and LUFS numerical displays
-6. **Recording Strip** — Waveform preview + playback controls
+3. **Oscilloscope + Level Meter** — Waveform with vertical meter beside it
+4. **Readouts** — PEAK and LUFS numerical displays
+5. **Recording Strip** — Waveform preview + playback controls
+
+### Widget Dimensions
+
+All visualization widgets share the same **700px width** for visual alignment.
+
+| Widget | Desktop | Mobile (≤600px) | Notes |
+|--------|---------|-----------------|-------|
+| Spectrogram | 700×180px | 100%×120px | Frequency over time |
+| Oscilloscope | 700×100px | 100%×60px | ~80ms waveform window |
+| *(Future widgets)* | 700×???px | 100%×???px | Match width for alignment |
+
+Canvas elements have explicit `width` and `height` attributes to prevent scaling artifacts. CSS controls display size.
 
 ### Key Design Decisions
 

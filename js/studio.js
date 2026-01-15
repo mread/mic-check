@@ -483,6 +483,14 @@ function drawSpectrogram(ctx, canvas, frequencyData) {
 /**
  * Draw oscilloscope (waveform) visualization
  * Enhanced scope display with auto-scaling and clipping detection
+ * 
+ * Canvas dimensions: 700×100px (matches spectrogram width, shorter height)
+ * Mobile: 100%×60px
+ * 
+ * Features:
+ * - Shows ~80ms of audio (enough to see syllables)
+ * - Auto-scaling: speech fills ~70% of height
+ * - Clipping indicator: red flash when peaks hit max
  */
 function drawOscilloscope(ctx, canvas, timeDomainData) {
     const width = canvas.width;

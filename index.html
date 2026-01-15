@@ -1181,7 +1181,23 @@
             margin-bottom: 0.5rem;
         }
         
-        /* Hero Spectrogram */
+        /* =================================================================
+           STUDIO VISUALIZATION WIDGETS
+           
+           Dimensions (desktop):
+           - Spectrogram:  700×180px (frequency over time, scrolls left)
+           - Oscilloscope: 700×100px (waveform, ~80ms window)
+           - Future widgets should use same 700px width for alignment
+           
+           Dimensions (mobile ≤600px):
+           - Spectrogram:  100%×120px
+           - Oscilloscope: 100%×60px
+           
+           Canvas elements have explicit width/height attributes to prevent
+           scaling artifacts. CSS controls display size.
+           ================================================================= */
+        
+        /* Spectrogram — 700×180px desktop, 120px mobile */
         .studio-spectrogram {
             margin-bottom: 1.25rem;
         }
@@ -1209,7 +1225,7 @@
         
         .studio-spectrogram-canvas {
             width: 100%;
-            height: 180px;
+            height: 180px;  /* Desktop: 180px */
             border-radius: 4px;
             background: #0a0a0a;
         }
@@ -1221,7 +1237,7 @@
             margin-top: 0.25rem;
         }
         
-        /* Waveform + Meter Row */
+        /* Waveform + Meter Row — oscilloscope on left, vertical meter on right */
         .studio-waveform-row {
             display: flex;
             gap: 1rem;
@@ -1229,7 +1245,9 @@
             align-items: stretch;
         }
         
-        /* Oscilloscope (Waveform) */
+        /* Oscilloscope (Waveform) — 700×100px desktop, 60px mobile
+           Shows ~80ms of audio, auto-scaled so speech fills ~70% height.
+           Matches spectrogram width for visual alignment. */
         .studio-oscilloscope {
             flex: 1;
             display: flex;
@@ -1260,7 +1278,7 @@
         
         .studio-oscilloscope-canvas {
             width: 100%;
-            height: 100px;
+            height: 100px;  /* Desktop: 100px (shorter than spectrogram's 180px) */
             border-radius: 4px;
             background: #0a0a0a;
         }
@@ -1526,11 +1544,11 @@
             }
             
             .studio-spectrogram-canvas {
-                height: 120px;
+                height: 120px;  /* Mobile: reduced from 180px */
             }
             
             .studio-oscilloscope-canvas {
-                height: 60px;
+                height: 60px;   /* Mobile: reduced from 100px */
             }
             
             .studio-waveform-row {
@@ -2137,6 +2155,7 @@
                                 <span>100</span>
                             </div>
                             <div class="studio-spectrogram-canvas-wrap">
+                                <!-- Canvas: 700×180px prevents scaling artifacts. CSS controls display size. -->
                                 <canvas id="studio-spectrogram" class="studio-spectrogram-canvas" width="700" height="180"></canvas>
                                 <div class="studio-spectrogram-time">← time</div>
                             </div>
@@ -2155,6 +2174,7 @@
                                     <span>−1</span>
                                 </div>
                                 <div class="studio-oscilloscope-canvas-wrap">
+                                    <!-- Canvas: 700×100px matches spectrogram width, shorter height for stacking -->
                                     <canvas id="studio-oscilloscope" class="studio-oscilloscope-canvas" width="700" height="100"></canvas>
                                 </div>
                             </div>
