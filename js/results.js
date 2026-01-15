@@ -5,8 +5,8 @@
  * 
  * LEVEL CHECK PURPOSE:
  * The Level Check helps diagnose "why am I too quiet in calls?"
- * - With AGC ON: Tests if your mic provides enough signal for browser apps
- * - With AGC OFF: Measures raw levels for desktop apps or gain staging
+ * Tests if your mic provides enough signal for browser apps (with AGC/processing ON).
+ * For raw level measurement, users should use the Monitor page.
  * 
  * If issues are found, the user should proceed to Gain Staging (coming soon)
  * to optimize their hardware and OS settings.
@@ -139,20 +139,15 @@ export function displayQualityResults() {
         issues.push({ text: 'Voice doesn\'t stand out from noise — speak louder or reduce noise', severity: 'medium' });
     }
     
-    // AGC-specific messaging
-    const agcExplanation = agcWasEnabled 
-        ? `<strong>AGC was ON</strong> — This matches how browser apps (Google Meet, Zoom web, Discord) will hear you. 
-           AGC automatically adjusts levels, so exact numbers matter less than whether your mic is providing signal.`
-        : `<strong>AGC was OFF</strong> — This shows your raw microphone levels. 
-           Use this to set up gain staging for desktop apps or streaming software.`;
+    // Explain how the test simulates browser apps
+    const agcExplanation = `This test uses <strong>audio processing</strong> (AGC, noise suppression) to match how browser apps 
+           like Google Meet, Zoom, and Discord will hear you. AGC automatically adjusts your levels.`;
     
     // Build header message based on status
     let headerIcon, headerMessage, headerDetail;
     if (isGood) {
         headerIcon = '✅';
-        headerMessage = agcWasEnabled 
-            ? 'Your microphone is working well for calls'
-            : 'Your levels look good for streaming/recording';
+        headerMessage = 'Your microphone is working well for calls';
         headerDetail = 'No issues detected';
     } else if (hasStereoIssue) {
         headerIcon = '🔧';
@@ -255,17 +250,10 @@ export function displayQualityResults() {
             <summary style="cursor: pointer; color: var(--accent); font-weight: 500;">ℹ️ Understanding these results</summary>
             <div style="margin-top: 0.75rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px; color: var(--text-secondary);">
                 <p style="margin-bottom: 0.75rem;">${agcExplanation}</p>
-                ${agcWasEnabled ? `
                 <p style="margin-bottom: 0;">
-                    <strong>Still having issues?</strong> Try testing with AGC OFF to measure raw levels. 
-                    This helps identify if your hardware gain needs adjustment.
+                    <strong>For raw levels:</strong> Use the <strong>Monitor</strong> page with processing OFF to measure 
+                    your raw microphone signal for desktop apps like OBS, Discord, or DAWs.
                 </p>
-                ` : `
-                <p style="margin-bottom: 0;">
-                    <strong>For desktop apps:</strong> These raw levels show what apps like Discord, OBS, or DAWs will receive 
-                    (before their own processing). Aim for peaks around -6 to -1 dBFS.
-                </p>
-                `}
             </div>
         </details>
         

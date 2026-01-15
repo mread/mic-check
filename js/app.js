@@ -1843,26 +1843,6 @@ function updateQualityDeviceInfo(phase = 'silence') {
     settingsEl.textContent = settingsParts.join(' • ');
 }
 
-/**
- * Update the persistent AGC status bar
- * @param {boolean} agcOn - Whether AGC is currently on
- * @param {string} detail - Additional detail text
- */
-function updateAgcStatusBar(agcOn, detail = '') {
-    const bar = document.getElementById('agc-status-bar');
-    const icon = document.getElementById('agc-status-icon');
-    const text = document.getElementById('agc-status-text');
-    const detailEl = document.getElementById('agc-status-detail');
-    
-    if (!bar) return;
-    
-    bar.style.display = 'flex';
-    bar.className = `agc-status ${agcOn ? 'agc-on' : 'agc-off'}`;
-    icon.textContent = agcOn ? '🔊' : '🔇';
-    text.textContent = agcOn ? 'AGC: On' : 'AGC: Off';
-    detailEl.textContent = detail;
-}
-
 function finishSilenceRecording() {
     const sorted = [...levelCheckState.noiseFloorSamples].sort((a, b) => a - b);
     const quietHalf = sorted.slice(0, Math.floor(sorted.length / 2));
@@ -1879,9 +1859,6 @@ function goToVoiceStep() {
     document.getElementById('quality-step-silence').style.display = 'none';
     document.getElementById('quality-step-voice').style.display = 'block';
     
-    // Pre-initialize AGC status bar with user's selected preference
-    const agcEnabled = levelCheckState.userAgcPreference || false;
-    updateAgcStatusBar(agcEnabled, agcEnabled ? '— automatic level adjustment' : '— raw microphone signal');
 }
 
 async function startVoiceRecording() {
@@ -1922,9 +1899,8 @@ async function startVoiceRecording() {
         return;
     }
     
-    // Update device info and AGC status to show current settings
+    // Update device info
     updateQualityDeviceInfo('voice');
-    updateAgcStatusBar(agcEnabled, agcEnabled ? '— automatic level adjustment' : '— raw microphone signal');
     
     levelCheckState.voiceSamples = [];
     levelCheckState.peakVoice = -Infinity;
@@ -2029,10 +2005,6 @@ function resetQualityTest() {
     document.getElementById('btn-start-silence').style.display = 'inline-flex';
     document.getElementById('btn-next-to-voice').style.display = 'none';
     document.getElementById('btn-show-results').style.display = 'none';
-    
-    // Hide AGC status bar
-    const agcBar = document.getElementById('agc-status-bar');
-    if (agcBar) agcBar.style.display = 'none';
     
     // Reset voice pre-start section
     const preStart = document.getElementById('voice-pre-start');
