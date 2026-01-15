@@ -850,8 +850,9 @@ function updateMeterDisplay(els) {
         if (els.meterLabelL) {
             els.meterLabelL.textContent = '●';  // Single dot for mono
         }
+        // Update label text while preserving help icon
         if (els.levelsLabel) {
-            els.levelsLabel.textContent = 'Level (Mono)';
+            updateLabelText(els.levelsLabel, 'Level (Mono)');
         }
         // Hide Balance panel - meaningless for mono
         if (els.balanceContainer) {
@@ -866,14 +867,30 @@ function updateMeterDisplay(els) {
         if (els.meterLabelL) {
             els.meterLabelL.textContent = 'L';
         }
+        // Update label text while preserving help icon
         if (els.levelsLabel) {
-            els.levelsLabel.textContent = 'Levels';
+            updateLabelText(els.levelsLabel, 'Levels');
         }
         // Show Balance panel for stereo
         if (els.balanceContainer) {
             els.balanceContainer.style.display = '';
         }
     }
+}
+
+/**
+ * Update only the text content of a label, preserving child elements (like help icons)
+ */
+function updateLabelText(element, newText) {
+    // Find the first text node and update it
+    for (const node of element.childNodes) {
+        if (node.nodeType === Node.TEXT_NODE) {
+            node.textContent = newText + ' ';  // Add space before help icon
+            return;
+        }
+    }
+    // If no text node found, prepend one
+    element.insertBefore(document.createTextNode(newText + ' '), element.firstChild);
 }
 
 /**

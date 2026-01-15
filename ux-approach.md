@@ -254,6 +254,27 @@ Not "Signal below threshold" or "Insufficient amplitude detected". The phrase "W
 
 The `<details>` element hides technical explanation until the user explicitly requests it.
 
+**Canonical Example (Inline Help Tooltips):**
+
+```2183:2199:index.html
+<!-- Spectrogram -->
+<div class="studio-spectrogram">
+    <div class="studio-section-label">
+        Spectrogram
+        <span class="studio-help-icon" tabindex="0">ⓘ
+            <div class="studio-help-tooltip">
+                <strong>What it shows</strong>
+                Frequency content over time. Low frequencies at bottom...
+                <ul>
+                    <li><strong>Noise patterns:</strong> Constant horizontal lines...</li>
+                </ul>
+            </div>
+        </span>
+    </div>
+```
+
+The help icon is unobtrusive (small, muted) but discoverable. Hovering or focusing reveals usage guidance. The tooltip answers "what does this show?" and "what should I look for?" — the two questions users have when encountering a new visualization.
+
 **Reference:** [Nielsen Heuristic #8](https://www.nngroup.com/articles/aesthetic-minimalist-design/) (Aesthetic and minimalist design)
 
 ---

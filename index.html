@@ -1179,6 +1179,70 @@
             letter-spacing: 0.05em;
             color: var(--text-muted);
             margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+        }
+        
+        /* Help icon and tooltip for visualization sections */
+        .studio-help-icon {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            cursor: help;
+            opacity: 0.6;
+            transition: opacity 0.15s;
+            position: relative;
+            text-transform: none;
+            letter-spacing: normal;
+        }
+        
+        .studio-help-icon:hover {
+            opacity: 1;
+        }
+        
+        .studio-help-tooltip {
+            display: none;
+            position: absolute;
+            top: 1.5rem;
+            left: 0;
+            z-index: 100;
+            background: var(--bg-elevated, #1a1a2e);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            min-width: 280px;
+            max-width: 340px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            font-size: 0.8rem;
+            font-weight: 400;
+            line-height: 1.5;
+            color: var(--text-secondary);
+            text-transform: none;
+            letter-spacing: normal;
+        }
+        
+        .studio-help-icon:hover .studio-help-tooltip,
+        .studio-help-icon:focus .studio-help-tooltip {
+            display: block;
+        }
+        
+        .studio-help-tooltip strong {
+            color: var(--text-primary);
+            display: block;
+            margin-bottom: 0.4rem;
+        }
+        
+        .studio-help-tooltip ul {
+            margin: 0.5rem 0 0 0;
+            padding-left: 1.1rem;
+        }
+        
+        .studio-help-tooltip li {
+            margin-bottom: 0.25rem;
+        }
+        
+        .studio-help-tooltip li:last-child {
+            margin-bottom: 0;
         }
         
         /* =================================================================
@@ -1186,16 +1250,31 @@
            
            Dimensions (desktop):
            - Spectrogram:  700×180px (frequency over time, scrolls left)
+           - Spectrum:     700×80px  (32 bars, 80Hz-16kHz)
            - Oscilloscope: 700×100px (waveform, ~80ms window)
-           - Future widgets should use same 700px width for alignment
            
            Dimensions (mobile ≤600px):
            - Spectrogram:  100%×120px
+           - Spectrum:     100%×60px
            - Oscilloscope: 100%×60px
            
+           All widgets use a 32px left axis column for alignment.
            Canvas elements have explicit width/height attributes to prevent
            scaling artifacts. CSS controls display size.
            ================================================================= */
+        
+        /* Shared axis column width for widget alignment */
+        .studio-viz-axis {
+            width: 32px;
+            min-width: 32px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            padding: 2px 0;
+            text-align: right;
+        }
         
         /* Spectrogram — 700×180px desktop, 120px mobile */
         .studio-spectrogram {
@@ -1208,14 +1287,7 @@
         }
         
         .studio-spectrogram-axis {
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            font-size: 0.65rem;
-            color: var(--text-muted);
-            padding: 2px 0;
-            text-align: right;
-            min-width: 40px;
+            /* Inherits from .studio-viz-axis, add any spectrogram-specific styles here */
         }
         
         .studio-spectrogram-canvas-wrap {
@@ -1244,6 +1316,16 @@
         }
         
         .studio-spectrum-container {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .studio-spectrum-axis {
+            /* Inherits from .studio-viz-axis, empty for spectrum (dB not shown) */
+        }
+        
+        .studio-spectrum-main {
+            flex: 1;
             display: flex;
             flex-direction: column;
         }
@@ -1293,14 +1375,7 @@
         }
         
         .studio-oscilloscope-axis {
-            display: flex;
-            flex-direction: column;
-            justify-content: space-between;
-            font-size: 0.65rem;
-            color: var(--text-muted);
-            padding: 2px 0;
-            text-align: right;
-            min-width: 24px;
+            /* Inherits from .studio-viz-axis, add any oscilloscope-specific styles here */
         }
         
         .studio-oscilloscope-canvas-wrap {
@@ -2182,9 +2257,22 @@
                 <div id="studio-viz-container" class="studio-viz-main" style="display: none;">
                     <!-- Spectrogram -->
                     <div class="studio-spectrogram">
-                        <div class="studio-section-label">Spectrogram</div>
+                        <div class="studio-section-label">
+                            Spectrogram
+                            <span class="studio-help-icon" tabindex="0">ⓘ
+                                <div class="studio-help-tooltip">
+                                    <strong>What it shows</strong>
+                                    Frequency content over time. Low frequencies at the bottom, high at top. Brighter colors = louder.
+                                    <ul>
+                                        <li><strong>Noise patterns:</strong> Constant horizontal lines indicate room noise or hum</li>
+                                        <li><strong>Sibilance:</strong> Bright flashes in the 5-8kHz region on "S" sounds</li>
+                                        <li><strong>Plosives:</strong> Low-frequency bursts on P/B sounds</li>
+                                    </ul>
+                                </div>
+                            </span>
+                        </div>
                         <div class="studio-spectrogram-container">
-                            <div class="studio-spectrogram-axis">
+                            <div class="studio-viz-axis studio-spectrogram-axis">
                                 <span>20k</span>
                                 <span>8k</span>
                                 <span>1k</span>
@@ -2200,21 +2288,39 @@
                     
                     <!-- Frequency Spectrum (Bar Graph) -->
                     <div class="studio-spectrum">
-                        <div class="studio-section-label">Spectrum</div>
+                        <div class="studio-section-label">
+                            Spectrum
+                            <span class="studio-help-icon" tabindex="0">ⓘ
+                                <div class="studio-help-tooltip">
+                                    <strong>What it shows</strong>
+                                    Real-time frequency content as vertical bars. Instantly shows which frequencies are active right now.
+                                    <ul>
+                                        <li><strong>Below 100Hz spike:</strong> Plosive, rumble, or handling noise</li>
+                                        <li><strong>100-250Hz heavy:</strong> Too close to mic (proximity effect)</li>
+                                        <li><strong>5-8kHz spike:</strong> Sibilance problem — harsh "S" sounds</li>
+                                        <li><strong>Constant 50/60Hz bar:</strong> Electrical hum</li>
+                                    </ul>
+                                </div>
+                            </span>
+                        </div>
                         <div class="studio-spectrum-container">
-                            <div class="studio-spectrum-canvas-wrap">
-                                <!-- Canvas: 700×80px matches other widget widths -->
-                                <canvas id="studio-spectrum" class="studio-spectrum-canvas" width="700" height="80"></canvas>
-                            </div>
-                            <div class="studio-spectrum-labels">
-                                <span>80</span>
-                                <span>200</span>
-                                <span>500</span>
-                                <span>1k</span>
-                                <span>2k</span>
-                                <span>5k</span>
-                                <span>10k</span>
-                                <span>16k</span>
+                            <!-- Empty axis placeholder for alignment with other widgets -->
+                            <div class="studio-viz-axis studio-spectrum-axis"></div>
+                            <div class="studio-spectrum-main">
+                                <div class="studio-spectrum-canvas-wrap">
+                                    <!-- Canvas: 700×80px matches other widget widths -->
+                                    <canvas id="studio-spectrum" class="studio-spectrum-canvas" width="700" height="80"></canvas>
+                                </div>
+                                <div class="studio-spectrum-labels">
+                                    <span>80</span>
+                                    <span>200</span>
+                                    <span>500</span>
+                                    <span>1k</span>
+                                    <span>2k</span>
+                                    <span>5k</span>
+                                    <span>10k</span>
+                                    <span>16k</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -2223,9 +2329,23 @@
                     <div class="studio-waveform-row">
                         <!-- Oscilloscope (Waveform) -->
                         <div class="studio-oscilloscope">
-                            <div class="studio-section-label">Waveform</div>
+                            <div class="studio-section-label">
+                                Waveform
+                                <span class="studio-help-icon" tabindex="0">ⓘ
+                                    <div class="studio-help-tooltip">
+                                        <strong>What it shows</strong>
+                                        The actual audio waveform in real-time (~40ms window). Classic oscilloscope view.
+                                        <ul>
+                                            <li><strong>Flat-topped peaks:</strong> Clipping — audio is distorting</li>
+                                            <li><strong>One-sided spikes:</strong> Plosives (P/B sounds hitting the mic)</li>
+                                            <li><strong>Sharp vs soft attacks:</strong> Shows voice delivery consistency</li>
+                                            <li><strong>Barely visible wave:</strong> Speak up or move closer</li>
+                                        </ul>
+                                    </div>
+                                </span>
+                            </div>
                             <div class="studio-oscilloscope-container">
-                                <div class="studio-oscilloscope-axis">
+                                <div class="studio-viz-axis studio-oscilloscope-axis">
                                     <span>+1</span>
                                     <span>0</span>
                                     <span>−1</span>
@@ -2239,7 +2359,21 @@
                         
                         <!-- Vertical Level Meters -->
                         <div class="studio-meters-vertical">
-                            <div id="studio-levels-label" class="studio-section-label">Level</div>
+                            <div id="studio-levels-label" class="studio-section-label">
+                                Level
+                                <span class="studio-help-icon" tabindex="0">ⓘ
+                                    <div class="studio-help-tooltip">
+                                        <strong>What it shows</strong>
+                                        Audio level in decibels (dB). The thin line shows peak hold — the loudest moment in the last 2 seconds.
+                                        <ul>
+                                            <li><strong>Green zone (-40 to -12dB):</strong> Good recording level</li>
+                                            <li><strong>Yellow zone (-12 to -6dB):</strong> Getting hot — watch for peaks</li>
+                                            <li><strong>Red zone (above -6dB):</strong> Risk of clipping</li>
+                                            <li><strong>Aim for peaks around -12dB</strong> with headroom to spare</li>
+                                        </ul>
+                                    </div>
+                                </span>
+                            </div>
                             <div class="studio-vmeter-container">
                                 <div id="studio-meter-col-l" class="studio-vmeter-col">
                                     <div class="studio-vmeter-bar">
