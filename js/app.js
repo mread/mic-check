@@ -99,7 +99,8 @@ import {
     isProcessingEnabled,
     drawWaveformPreview,
     switchDevice as switchStudioDevice,
-    isRunning as isStudioRunning
+    isRunning as isStudioRunning,
+    getChannelCount
 } from './studio.js';
 
 import { escapeHtml } from './utils.js';
@@ -723,6 +724,10 @@ function getStudioElements() {
         spectrogramCanvas: document.getElementById('studio-spectrogram'),
         
         // Meters
+        levelsLabel: document.getElementById('studio-levels-label'),
+        meterRowL: document.getElementById('studio-meter-row-l'),
+        meterRowR: document.getElementById('studio-meter-row-r'),
+        meterLabelL: document.getElementById('studio-meter-label-l'),
         meterLFill: document.getElementById('studio-meter-l-fill'),
         meterLPeak: document.getElementById('studio-meter-l-peak'),
         meterLValue: document.getElementById('studio-meter-l-value'),
@@ -814,6 +819,9 @@ async function startStudioMonitor(deviceId, els) {
         els.statusDisplay.textContent = 'Monitoring';
         els.statusDisplay.className = 'transport-status';
         
+        // Update meter display for mono vs stereo
+        updateMeterDisplay(els);
+        
         // Start visualization
         startStudioVisualization(els);
         
@@ -821,6 +829,40 @@ async function startStudioMonitor(deviceId, els) {
         els.statusDisplay.textContent = result.error || 'Error';
         els.statusDisplay.className = 'transport-status';
         console.warn('Failed to start studio:', result.error);
+    }
+}
+
+/**
+ * Update meter display for mono vs stereo devices
+ */
+function updateMeterDisplay(els) {
+    const channelCount = getChannelCount();
+    const isMono = channelCount === 1;
+    
+    if (isMono) {
+        // Hide R meter row for mono devices
+        if (els.meterRowR) {
+            els.meterRowR.style.display = 'none';
+        }
+        // Update L label to indicate it's the only channel
+        if (els.meterLabelL) {
+            els.meterLabelL.textContent = '●';  // Single dot for mono
+        }
+        if (els.levelsLabel) {
+            els.levelsLabel.textContent = 'Level (Mono)';
+        }
+    } else {
+        // Show R meter row for stereo devices
+        if (els.meterRowR) {
+            els.meterRowR.style.display = '';
+        }
+        // Reset L label
+        if (els.meterLabelL) {
+            els.meterLabelL.textContent = 'L';
+        }
+        if (els.levelsLabel) {
+            els.levelsLabel.textContent = 'Levels';
+        }
     }
 }
 

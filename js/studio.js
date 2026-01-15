@@ -27,6 +27,9 @@ const studioState = {
     analyserL: null,
     analyserR: null,
     
+    // Channel info (1 = mono, 2 = stereo)
+    channelCount: 2,
+    
     // Animation
     animationId: null,
     isRunning: false,
@@ -150,7 +153,12 @@ export async function initStudio(deviceId) {
         const track = stream.getAudioTracks()[0];
         const label = track?.label || 'Unknown Microphone';
         
-        return { success: true, label };
+        // Detect channel count (mono vs stereo)
+        const settings = track?.getSettings() || {};
+        studioState.channelCount = settings.channelCount || 2;
+        console.log(`Audio device "${label}" has ${studioState.channelCount} channel(s)`);
+        
+        return { success: true, label, channelCount: studioState.channelCount };
         
     } catch (error) {
         console.error('Failed to init studio:', error);
@@ -646,6 +654,20 @@ export async function populateStudioDeviceDropdown(selectElement, selectedDevice
  */
 export function isRunning() {
     return studioState.isRunning;
+}
+
+/**
+ * Get channel count (1 = mono, 2 = stereo)
+ */
+export function getChannelCount() {
+    return studioState.channelCount;
+}
+
+/**
+ * Check if current device is mono
+ */
+export function isMono() {
+    return studioState.channelCount === 1;
 }
 
 /**
