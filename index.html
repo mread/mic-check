@@ -1221,14 +1221,25 @@
             margin-top: 0.25rem;
         }
         
+        /* Waveform + Meter Row */
+        .studio-waveform-row {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 1.25rem;
+            align-items: stretch;
+        }
+        
         /* Oscilloscope (Waveform) */
         .studio-oscilloscope {
-            margin-bottom: 1.25rem;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
         }
         
         .studio-oscilloscope-container {
             display: flex;
             gap: 0.5rem;
+            flex: 1;
         }
         
         .studio-oscilloscope-axis {
@@ -1239,7 +1250,7 @@
             color: var(--text-muted);
             padding: 2px 0;
             text-align: right;
-            min-width: 40px;
+            min-width: 24px;
         }
         
         .studio-oscilloscope-canvas-wrap {
@@ -1254,31 +1265,33 @@
             background: #0a0a0a;
         }
         
-        /* Stereo Level Meters */
-        .studio-meters {
-            margin-bottom: 1.25rem;
-        }
-        
-        .studio-meter-row {
+        /* Vertical Level Meters */
+        .studio-meters-vertical {
             display: flex;
+            flex-direction: column;
             align-items: center;
-            gap: 0.5rem;
-            margin-bottom: 0.35rem;
+            min-width: 70px;
         }
         
-        .studio-meter-label {
-            font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
-            font-size: 0.75rem;
-            font-weight: 600;
-            width: 16px;
-            text-align: center;
-            color: var(--text-secondary);
-        }
-        
-        .studio-meter-bar {
+        .studio-vmeter-container {
+            display: flex;
+            gap: 6px;
             flex: 1;
-            height: 24px;
-            background: linear-gradient(90deg, 
+            padding-top: 4px;
+        }
+        
+        .studio-vmeter-col {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+        }
+        
+        .studio-vmeter-bar {
+            width: 22px;
+            flex: 1;
+            min-height: 80px;
+            background: linear-gradient(to top, 
                 #1a3d1a 0%, #1a3d1a 60%,
                 #3d3d1a 60%, #3d3d1a 85%,
                 #3d1a1a 85%, #3d1a1a 100%
@@ -1289,39 +1302,45 @@
             border: 1px solid #333;
         }
         
-        .studio-meter-fill {
+        .studio-vmeter-fill {
             position: absolute;
-            top: 0;
+            bottom: 0;
             left: 0;
-            height: 100%;
             width: 100%;
-            background: linear-gradient(90deg, 
+            height: 100%;
+            background: linear-gradient(to top, 
                 #22c55e 0%, #22c55e 60%,
                 #eab308 60%, #eab308 85%,
                 #ef4444 85%, #ef4444 100%
             );
             border-radius: 2px;
             transition: clip-path 0.03s ease;
-            clip-path: inset(0 100% 0 0);
+            clip-path: inset(100% 0 0 0);
         }
         
-        .studio-meter-peak {
+        .studio-vmeter-peak {
             position: absolute;
-            top: 0;
-            width: 2px;
-            height: 100%;
+            left: 0;
+            width: 100%;
+            height: 2px;
             background: white;
-            opacity: 0.8;
-            transition: left 0.05s ease;
+            opacity: 0.9;
+            transition: bottom 0.05s ease;
         }
         
-        .studio-meter-value {
+        .studio-vmeter-label {
+            font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-muted);
+        }
+        
+        .studio-vmeter-db {
             font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
             font-size: 0.75rem;
             font-weight: 600;
-            min-width: 55px;
-            text-align: right;
             color: var(--text-secondary);
+            margin-top: 4px;
         }
         
         /* Readouts row */
@@ -1514,13 +1533,23 @@
                 height: 60px;
             }
             
-            .studio-meter-row {
-                flex-wrap: wrap;
+            .studio-waveform-row {
+                flex-direction: column;
             }
             
-            .studio-meter-bar {
-                order: 3;
-                flex: 1 1 100%;
+            .studio-meters-vertical {
+                flex-direction: row;
+                justify-content: center;
+                gap: 1rem;
+            }
+            
+            .studio-vmeter-container {
+                padding-top: 0;
+            }
+            
+            .studio-vmeter-bar {
+                height: 60px;
+                min-height: 60px;
             }
             
             .studio-readouts {
@@ -2114,39 +2143,43 @@
                         </div>
                     </div>
                     
-                    <!-- Oscilloscope (Waveform) -->
-                    <div class="studio-oscilloscope">
-                        <div class="studio-section-label">Waveform</div>
-                        <div class="studio-oscilloscope-container">
-                            <div class="studio-oscilloscope-axis">
-                                <span>+1</span>
-                                <span>0</span>
-                                <span>−1</span>
-                            </div>
-                            <div class="studio-oscilloscope-canvas-wrap">
-                                <canvas id="studio-oscilloscope" class="studio-oscilloscope-canvas" width="700" height="100"></canvas>
+                    <!-- Waveform + Level Meters Row -->
+                    <div class="studio-waveform-row">
+                        <!-- Oscilloscope (Waveform) -->
+                        <div class="studio-oscilloscope">
+                            <div class="studio-section-label">Waveform</div>
+                            <div class="studio-oscilloscope-container">
+                                <div class="studio-oscilloscope-axis">
+                                    <span>+1</span>
+                                    <span>0</span>
+                                    <span>−1</span>
+                                </div>
+                                <div class="studio-oscilloscope-canvas-wrap">
+                                    <canvas id="studio-oscilloscope" class="studio-oscilloscope-canvas" width="700" height="100"></canvas>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                    
-                    <!-- Stereo Level Meters -->
-                    <div class="studio-meters">
-                        <div id="studio-levels-label" class="studio-section-label">Levels</div>
-                        <div id="studio-meter-row-l" class="studio-meter-row">
-                            <span id="studio-meter-label-l" class="studio-meter-label">L</span>
-                            <div class="studio-meter-bar">
-                                <div id="studio-meter-l-fill" class="studio-meter-fill"></div>
-                                <div id="studio-meter-l-peak" class="studio-meter-peak" style="left: 0;"></div>
+                        
+                        <!-- Vertical Level Meters -->
+                        <div class="studio-meters-vertical">
+                            <div id="studio-levels-label" class="studio-section-label">Level</div>
+                            <div class="studio-vmeter-container">
+                                <div id="studio-meter-col-l" class="studio-vmeter-col">
+                                    <div class="studio-vmeter-bar">
+                                        <div id="studio-meter-l-fill" class="studio-vmeter-fill"></div>
+                                        <div id="studio-meter-l-peak" class="studio-vmeter-peak" style="bottom: 0;"></div>
+                                    </div>
+                                    <span id="studio-meter-label-l" class="studio-vmeter-label">L</span>
+                                </div>
+                                <div id="studio-meter-col-r" class="studio-vmeter-col">
+                                    <div class="studio-vmeter-bar">
+                                        <div id="studio-meter-r-fill" class="studio-vmeter-fill"></div>
+                                        <div id="studio-meter-r-peak" class="studio-vmeter-peak" style="bottom: 0;"></div>
+                                    </div>
+                                    <span class="studio-vmeter-label">R</span>
+                                </div>
                             </div>
-                            <span id="studio-meter-l-value" class="studio-meter-value">-∞ dB</span>
-                        </div>
-                        <div id="studio-meter-row-r" class="studio-meter-row">
-                            <span class="studio-meter-label">R</span>
-                            <div class="studio-meter-bar">
-                                <div id="studio-meter-r-fill" class="studio-meter-fill"></div>
-                                <div id="studio-meter-r-peak" class="studio-meter-peak" style="left: 0;"></div>
-                            </div>
-                            <span id="studio-meter-r-value" class="studio-meter-value">-∞ dB</span>
+                            <div id="studio-meter-db" class="studio-vmeter-db">-∞</div>
                         </div>
                     </div>
                     

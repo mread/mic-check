@@ -298,8 +298,7 @@ export function startVisualization(elements) {
             dbL,
             studioState.peakHoldL,
             elements.meterLFill,
-            elements.meterLPeak,
-            elements.meterLValue
+            elements.meterLPeak
         );
         
         // Update R meter
@@ -307,9 +306,14 @@ export function startVisualization(elements) {
             dbR,
             studioState.peakHoldR,
             elements.meterRFill,
-            elements.meterRPeak,
-            elements.meterRValue
+            elements.meterRPeak
         );
+        
+        // Update dB display (show max of L/R)
+        if (elements.meterDb) {
+            const maxDb = Math.max(dbL, dbR);
+            elements.meterDb.textContent = maxDb <= -60 ? '-∞' : `${Math.round(maxDb)}`;
+        }
         
         // Update readouts
         if (elements.peakValue) {
@@ -387,23 +391,21 @@ function calculateBalance(rmsL, rmsR) {
 }
 
 /**
- * Update a single meter
+ * Update a single vertical meter
  */
-function updateMeter(db, peakHold, fillEl, peakEl, valueEl) {
+function updateMeter(db, peakHold, fillEl, peakEl) {
     // Convert dB to percentage (-60dB to 0dB range)
     const pct = Math.max(0, Math.min(100, ((db + 60) / 60) * 100));
     const peakPct = Math.max(0, Math.min(100, ((peakHold + 60) / 60) * 100));
     
     if (fillEl) {
-        fillEl.style.clipPath = `inset(0 ${100 - pct}% 0 0)`;
+        // Vertical: clip from top (100-pct means show pct% from bottom)
+        fillEl.style.clipPath = `inset(${100 - pct}% 0 0 0)`;
     }
     
     if (peakEl) {
-        peakEl.style.left = `${peakPct}%`;
-    }
-    
-    if (valueEl) {
-        valueEl.textContent = db <= -60 ? '-∞ dB' : `${Math.round(db)} dB`;
+        // Vertical: position from bottom
+        peakEl.style.bottom = `${peakPct}%`;
     }
 }
 

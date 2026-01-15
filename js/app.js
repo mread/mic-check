@@ -724,17 +724,16 @@ function getStudioElements() {
         spectrogramCanvas: document.getElementById('studio-spectrogram'),
         oscilloscopeCanvas: document.getElementById('studio-oscilloscope'),
         
-        // Meters
+        // Vertical Meters
         levelsLabel: document.getElementById('studio-levels-label'),
-        meterRowL: document.getElementById('studio-meter-row-l'),
-        meterRowR: document.getElementById('studio-meter-row-r'),
+        meterColL: document.getElementById('studio-meter-col-l'),
+        meterColR: document.getElementById('studio-meter-col-r'),
         meterLabelL: document.getElementById('studio-meter-label-l'),
         meterLFill: document.getElementById('studio-meter-l-fill'),
         meterLPeak: document.getElementById('studio-meter-l-peak'),
-        meterLValue: document.getElementById('studio-meter-l-value'),
         meterRFill: document.getElementById('studio-meter-r-fill'),
         meterRPeak: document.getElementById('studio-meter-r-peak'),
-        meterRValue: document.getElementById('studio-meter-r-value'),
+        meterDb: document.getElementById('studio-meter-db'),
         
         // Readouts
         peakValue: document.getElementById('studio-peak-value'),
@@ -842,9 +841,9 @@ function updateMeterDisplay(els) {
     const isMono = channelCount === 1;
     
     if (isMono) {
-        // Hide R meter row for mono devices
-        if (els.meterRowR) {
-            els.meterRowR.style.display = 'none';
+        // Hide R meter column for mono devices
+        if (els.meterColR) {
+            els.meterColR.style.display = 'none';
         }
         // Update L label to indicate it's the only channel
         if (els.meterLabelL) {
@@ -858,9 +857,9 @@ function updateMeterDisplay(els) {
             els.balanceContainer.style.display = 'none';
         }
     } else {
-        // Show R meter row for stereo devices
-        if (els.meterRowR) {
-            els.meterRowR.style.display = '';
+        // Show R meter column for stereo devices
+        if (els.meterColR) {
+            els.meterColR.style.display = '';
         }
         // Reset L label
         if (els.meterLabelL) {
