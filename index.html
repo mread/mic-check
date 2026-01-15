@@ -1221,6 +1221,39 @@
             margin-top: 0.25rem;
         }
         
+        /* Oscilloscope (Waveform) */
+        .studio-oscilloscope {
+            margin-bottom: 1.25rem;
+        }
+        
+        .studio-oscilloscope-container {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .studio-oscilloscope-axis {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            padding: 2px 0;
+            text-align: right;
+            min-width: 40px;
+        }
+        
+        .studio-oscilloscope-canvas-wrap {
+            flex: 1;
+            position: relative;
+        }
+        
+        .studio-oscilloscope-canvas {
+            width: 100%;
+            height: 100px;
+            border-radius: 4px;
+            background: #0a0a0a;
+        }
+        
         /* Stereo Level Meters */
         .studio-meters {
             margin-bottom: 1.25rem;
@@ -1475,6 +1508,10 @@
             
             .studio-spectrogram-canvas {
                 height: 120px;
+            }
+            
+            .studio-oscilloscope-canvas {
+                height: 60px;
             }
             
             .studio-meter-row {
@@ -2073,6 +2110,21 @@
                             <div class="studio-spectrogram-canvas-wrap">
                                 <canvas id="studio-spectrogram" class="studio-spectrogram-canvas" width="700" height="180"></canvas>
                                 <div class="studio-spectrogram-time">← time</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Oscilloscope (Waveform) -->
+                    <div class="studio-oscilloscope">
+                        <div class="studio-section-label">Waveform</div>
+                        <div class="studio-oscilloscope-container">
+                            <div class="studio-oscilloscope-axis">
+                                <span>+1</span>
+                                <span>0</span>
+                                <span>−1</span>
+                            </div>
+                            <div class="studio-oscilloscope-canvas-wrap">
+                                <canvas id="studio-oscilloscope" class="studio-oscilloscope-canvas" width="700" height="100"></canvas>
                             </div>
                         </div>
                     </div>

@@ -41,6 +41,10 @@ const studioState = {
     spectrogramCtx: null,
     frequencyData: null,
     
+    // Oscilloscope
+    oscilloscopeCtx: null,
+    timeDomainData: null,
+    
     // Meters
     peakL: -Infinity,
     peakR: -Infinity,
@@ -204,6 +208,16 @@ export function startVisualization(elements) {
         studioState.spectrogramCtx.fillRect(0, 0, elements.spectrogramCanvas.width, elements.spectrogramCanvas.height);
     }
     
+    // Set up oscilloscope canvas
+    if (elements.oscilloscopeCanvas) {
+        studioState.oscilloscopeCtx = elements.oscilloscopeCanvas.getContext('2d');
+        studioState.timeDomainData = new Uint8Array(studioState.analyser.fftSize);
+        
+        // Clear with dark background
+        studioState.oscilloscopeCtx.fillStyle = '#0a0a0a';
+        studioState.oscilloscopeCtx.fillRect(0, 0, elements.oscilloscopeCanvas.width, elements.oscilloscopeCanvas.height);
+    }
+    
     // Time domain data for stereo channels
     const timeDomainL = new Float32Array(studioState.analyserL.fftSize);
     const timeDomainR = new Float32Array(studioState.analyserR.fftSize);
@@ -225,6 +239,16 @@ export function startVisualization(elements) {
                 studioState.spectrogramCtx,
                 elements.spectrogramCanvas,
                 studioState.frequencyData
+            );
+        }
+        
+        // Update oscilloscope
+        if (studioState.oscilloscopeCtx && studioState.timeDomainData && elements.oscilloscopeCanvas) {
+            studioState.analyser.getByteTimeDomainData(studioState.timeDomainData);
+            drawOscilloscope(
+                studioState.oscilloscopeCtx,
+                elements.oscilloscopeCanvas,
+                studioState.timeDomainData
             );
         }
         
@@ -452,6 +476,55 @@ function drawSpectrogram(ctx, canvas, frequencyData) {
 }
 
 /**
+ * Draw oscilloscope (waveform) visualization
+ * Classic scope display showing time-domain audio signal
+ */
+function drawOscilloscope(ctx, canvas, timeDomainData) {
+    const width = canvas.width;
+    const height = canvas.height;
+    const centerY = height / 2;
+    
+    // Clear background
+    ctx.fillStyle = '#0a0a0a';
+    ctx.fillRect(0, 0, width, height);
+    
+    // Draw center line (zero crossing reference)
+    ctx.strokeStyle = '#333';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, centerY);
+    ctx.lineTo(width, centerY);
+    ctx.stroke();
+    
+    // Draw waveform
+    ctx.strokeStyle = '#00ff88';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    
+    // Map time domain data to canvas
+    // getByteTimeDomainData returns values 0-255, with 128 being center (silence)
+    const bufferLength = timeDomainData.length;
+    const sliceWidth = width / bufferLength;
+    
+    let x = 0;
+    for (let i = 0; i < bufferLength; i++) {
+        // Convert 0-255 to normalized value (-1 to +1)
+        const v = (timeDomainData[i] - 128) / 128;
+        const y = centerY - (v * centerY * 0.9); // 0.9 adds slight padding
+        
+        if (i === 0) {
+            ctx.moveTo(x, y);
+        } else {
+            ctx.lineTo(x, y);
+        }
+        
+        x += sliceWidth;
+    }
+    
+    ctx.stroke();
+}
+
+/**
  * Start recording - returns a promise that resolves when recording completes
  * @returns {Promise<boolean>} Resolves to true if recording completed successfully
  */
@@ -630,6 +703,8 @@ export async function cleanupStudio() {
     studioState.deviceId = null;
     studioState.spectrogramCtx = null;
     studioState.frequencyData = null;
+    studioState.oscilloscopeCtx = null;
+    studioState.timeDomainData = null;
     studioState.isRunning = false;
     studioState.isRecording = false;
     studioState.waveformData = [];

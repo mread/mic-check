@@ -289,6 +289,62 @@ During recording, users see a countdown, a pulsing indicator, and remaining time
 
 ---
 
+## Studio Page — Design Notes
+
+The Studio page (`#studio`) is a DAW-inspired audio monitor designed to be compelling enough that users choose it over their DAW or OS-level audio monitoring. It should look professional and "cool" — not like a utility page.
+
+### Target Users
+- Voiceover engineers (oscilloscope is their #1 request)
+- Streamers checking audio before going live
+- Podcasters monitoring levels
+- Vocal recorders checking their signal
+
+### Visual Hierarchy (Top to Bottom)
+
+1. **Transport Bar** — Device selection + record/stop/play controls
+2. **Spectrogram** — Frequency content over time (scrolls left)
+3. **Oscilloscope** — Time-domain waveform (classic scope line)
+4. **Level Meters** — Peak levels with dB values (mono: single meter, stereo: L/R)
+5. **Readouts** — PEAK and LUFS numerical displays
+6. **Recording Strip** — Waveform preview + playback controls
+
+### Key Design Decisions
+
+**Mono vs Stereo Detection:**
+Use `MediaTrackSettings.channelCount` to detect device type. Mono devices show a single meter; stereo shows L/R. Hide the Balance readout for mono (it's meaningless).
+
+**Oscilloscope Color:**
+Classic green (`#00ff88`) on black (`#0a0a0a`). This is the universally recognized oscilloscope aesthetic.
+
+**Section Labels:**
+All-caps, small (0.7rem), muted color, uppercase — consistent with DAW conventions.
+
+**Canvas Sizing:**
+Set explicit `width` and `height` attributes on canvas elements to prevent scaling artifacts. Use CSS for display sizing.
+
+### Canonical Examples
+
+**Oscilloscope drawing:**
+
+```477:523:js/studio.js
+function drawOscilloscope(ctx, canvas, timeDomainData) {
+    // Classic scope: clear, center line, green waveform
+    // Uses getByteTimeDomainData() for time-domain signal
+}
+```
+
+**Mono/Stereo UI adaptation:**
+
+```839:878:js/app.js
+function updateMeterDisplay(els) {
+    // Hide R meter row for mono
+    // Hide Balance panel (meaningless for mono)
+    // Update label to "Level (Mono)"
+}
+```
+
+---
+
 ## Using This Document
 
 ### For AI Agents

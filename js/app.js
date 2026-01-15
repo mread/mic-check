@@ -722,6 +722,7 @@ function getStudioElements() {
         // Visualization container
         vizContainer: document.getElementById('studio-viz-container'),
         spectrogramCanvas: document.getElementById('studio-spectrogram'),
+        oscilloscopeCanvas: document.getElementById('studio-oscilloscope'),
         
         // Meters
         levelsLabel: document.getElementById('studio-levels-label'),
