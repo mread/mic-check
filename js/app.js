@@ -738,6 +738,7 @@ function getStudioElements() {
         // Readouts
         peakValue: document.getElementById('studio-peak-value'),
         lufsValue: document.getElementById('studio-lufs-value'),
+        balanceContainer: document.getElementById('studio-balance-container'),
         balanceValue: document.getElementById('studio-balance-value'),
         
         // Recording strip
@@ -851,6 +852,10 @@ function updateMeterDisplay(els) {
         if (els.levelsLabel) {
             els.levelsLabel.textContent = 'Level (Mono)';
         }
+        // Hide Balance panel - meaningless for mono
+        if (els.balanceContainer) {
+            els.balanceContainer.style.display = 'none';
+        }
     } else {
         // Show R meter row for stereo devices
         if (els.meterRowR) {
@@ -862,6 +867,10 @@ function updateMeterDisplay(els) {
         }
         if (els.levelsLabel) {
             els.levelsLabel.textContent = 'Levels';
+        }
+        // Show Balance panel for stereo
+        if (els.balanceContainer) {
+            els.balanceContainer.style.display = '';
         }
     }
 }
