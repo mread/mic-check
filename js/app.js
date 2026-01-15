@@ -84,6 +84,8 @@ import {
 
 import { escapeHtml } from './utils.js';
 
+import { route, navigate, initRouter } from './router.js';
+
 // ============================================
 // State
 // ============================================
@@ -103,13 +105,10 @@ let playbackAudioElement = null;
 let selectedMonitorDeviceId = null;
 
 // ============================================
-// Screen Navigation
+// Screen Navigation (now handled by router.js)
 // ============================================
-export function showScreen(screenId) {
-    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
-    document.getElementById(screenId)?.classList.add('active');
-    window.scrollTo(0, 0);
-}
+// Note: showScreen is now internal to router.js
+// Use navigate('route-name') for programmatic navigation
 
 // ============================================
 // Diagnostic Checklist UI
@@ -602,18 +601,12 @@ export function stopTest() {
  * Open the monitor screen with a specific device
  * @param {string} deviceId - Optional device ID to pre-select
  */
-async function openMonitor(deviceId) {
-    // Store the device ID for monitor screen
+function openMonitor(deviceId) {
+    // Store the device ID for monitor screen (router's onEnter will call initMonitorScreen)
     selectedMonitorDeviceId = deviceId || getPrimaryDeviceId();
     
-    // Stop mic test monitoring (monitor screen has its own stream)
-    stopTest();
-    
-    // Show monitor screen
-    showScreen('screen-monitor');
-    
-    // Initialize monitor
-    await initMonitorScreen();
+    // Navigate to monitor (router handles cleanup via onLeave)
+    navigate('monitor');
 }
 
 /**
@@ -943,24 +936,25 @@ async function runPrivacyCheck() {
 // Event Listeners
 // ============================================
 function setupListeners() {
-    // Home screen
+    // Home screen - Start Test button
     document.getElementById('btn-start-test')?.addEventListener('click', () => {
-        showScreen('screen-mic-test');
-        runMicrophoneTest();
+        navigate('test');
     });
     
     // Journey cards - handle both click and keyboard activation
+    // Map journey names to route paths
+    const journeyRoutes = {
+        'level-check': 'level-check',
+        'monitor': 'monitor',
+        'privacy': 'privacy'
+    };
+    
     document.querySelectorAll('.journey-card').forEach(card => {
         const activateCard = () => {
             const journey = card.dataset.journey;
-            if (journey === 'level-check') {
-                showScreen('screen-level-check');
-                initLevelCheck();
-            } else if (journey === 'monitor') {
-                openMonitor();
-            } else if (journey === 'privacy') {
-                showScreen('screen-privacy');
-                runPrivacyCheck();
+            const routePath = journeyRoutes[journey];
+            if (routePath) {
+                navigate(routePath);
             }
         };
         
@@ -996,7 +990,8 @@ function setupListeners() {
     // Open Monitor link from mic test screen
     document.getElementById('link-open-monitor')?.addEventListener('click', (e) => {
         e.preventDefault();
-        openMonitor(getPrimaryDeviceId());
+        selectedMonitorDeviceId = getPrimaryDeviceId();
+        navigate('monitor');
     });
     
     // Monitor device dropdown change
@@ -1023,9 +1018,7 @@ function setupListeners() {
     
     document.getElementById('link-playback-level-check')?.addEventListener('click', (e) => {
         e.preventDefault();
-        stopTest();
-        showScreen('screen-level-check');
-        initLevelCheck();
+        navigate('level-check');
     });
     
     // Privacy check
@@ -1439,16 +1432,52 @@ function init() {
     detectBrowser();
     setupListeners();
     
-    // Expose API for inline onclick handlers
+    // Define routes
+    route('', {
+        screen: 'screen-home',
+        onLeave: () => {
+            // No cleanup needed for home
+        }
+    });
+    
+    route('test', {
+        screen: 'screen-mic-test',
+        onEnter: runMicrophoneTest,
+        onLeave: stopTest
+    });
+    
+    route('level-check', {
+        screen: 'screen-level-check',
+        onEnter: initLevelCheck,
+        onLeave: stopLevelCheck
+    });
+    
+    route('monitor', {
+        screen: 'screen-monitor',
+        onEnter: initMonitorScreen,
+        onLeave: stopMonitor
+    });
+    
+    route('privacy', {
+        screen: 'screen-privacy',
+        onEnter: runPrivacyCheck,
+        onLeave: () => {
+            // No cleanup needed for privacy
+        }
+    });
+    
+    // Start the router
+    initRouter();
+    
+    // Expose API for inline onclick handlers and programmatic navigation
     window.MicCheck = {
-        showScreen,
+        navigate,
         stopTest,
         stopMonitor,
         stopLevelCheck,
         runPrivacyCheck,
         continueWithPermissionTests,
         toggleMonitoring,
-        openMonitor,
         // Level check step functions
         goToVoiceStep,
         startVoiceRecording,
