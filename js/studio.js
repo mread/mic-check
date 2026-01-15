@@ -515,8 +515,10 @@ function drawSpectrogram(ctx, canvas, frequencyData) {
  * Canvas dimensions: 700×80px (matches other widget widths)
  * Mobile: 100%×60px
  * 
- * Shows frequency content as vertical bars with logarithmic scaling
- * to match human hearing perception.
+ * Recommended by audio engineer:
+ * - 32 bars (professional look, good frequency resolution)
+ * - 80Hz-16kHz range (covers speech and music fundamentals)
+ * - Logarithmic scaling (matches human hearing perception)
  */
 function drawSpectrum(ctx, canvas, frequencyData, sampleRate) {
     const width = canvas.width;
@@ -530,17 +532,16 @@ function drawSpectrum(ctx, canvas, frequencyData, sampleRate) {
     // Frequency resolution: each bin represents sampleRate / (2 * numBins) Hz
     // At 48kHz with 2048 FFT: ~23.4Hz per bin, max freq = 24kHz
     const binFrequency = sampleRate / (2 * numBins);
-    const maxFreq = sampleRate / 2;
     
-    // Use logarithmic scaling for frequency axis (matches human perception)
+    // Logarithmic frequency range (recommended: 80Hz-16kHz)
     const minLogFreq = Math.log10(80);      // Start at 80Hz
-    const maxLogFreq = Math.log10(20000);   // End at 20kHz
+    const maxLogFreq = Math.log10(16000);   // End at 16kHz
     const logRange = maxLogFreq - minLogFreq;
     
-    // Number of bars to draw
-    const numBars = 64;
-    const barWidth = (width / numBars) - 1;
-    const gap = 1;
+    // 32 bars recommended for professional look with good resolution
+    const numBars = 32;
+    const barWidth = (width / numBars) - 2;  // Slightly wider bars with 2px gap
+    const gap = 2;
     
     for (let i = 0; i < numBars; i++) {
         // Map bar position to frequency (logarithmic)

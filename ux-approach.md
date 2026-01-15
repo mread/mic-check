@@ -314,8 +314,8 @@ All visualization widgets share the same **700px width** for visual alignment.
 | Widget | Desktop | Mobile (≤600px) | Notes |
 |--------|---------|-----------------|-------|
 | Spectrogram | 700×180px | 100%×120px | Frequency over time |
+| Spectrum | 700×80px | 100%×60px | 32 bars, 80Hz-16kHz, logarithmic |
 | Oscilloscope | 700×100px | 100%×60px | ~80ms waveform window |
-| *(Future widgets)* | 700×???px | 100%×???px | Match width for alignment |
 
 Canvas elements have explicit `width` and `height` attributes to prevent scaling artifacts. CSS controls display size.
 
