@@ -44,6 +44,9 @@ const studioState = {
     // Oscilloscope
     oscilloscopeCtx: null,
     timeDomainData: null,
+    scopePeakLevel: 0,        // For auto-scaling
+    scopeClipping: false,     // For clipping indicator
+    scopeClipTime: 0,         // When clipping was detected
     
     // Meters
     peakL: -Infinity,
@@ -479,42 +482,107 @@ function drawSpectrogram(ctx, canvas, frequencyData) {
 
 /**
  * Draw oscilloscope (waveform) visualization
- * Classic scope display showing time-domain audio signal
+ * Enhanced scope display with auto-scaling and clipping detection
  */
 function drawOscilloscope(ctx, canvas, timeDomainData) {
     const width = canvas.width;
     const height = canvas.height;
     const centerY = height / 2;
+    const now = performance.now();
     
-    // Clear background
-    ctx.fillStyle = '#0a0a0a';
+    // Calculate how many samples to show for ~80ms window
+    // At 48kHz, 80ms = 3840 samples; at 44.1kHz = 3528 samples
+    const sampleRate = studioState.audioContext?.sampleRate || 48000;
+    const targetMs = 80; // Show ~80ms of audio (good for syllables)
+    const samplesToShow = Math.min(
+        Math.floor(sampleRate * targetMs / 1000),
+        timeDomainData.length
+    );
+    
+    // Use the most recent samples (end of buffer)
+    const startIndex = timeDomainData.length - samplesToShow;
+    
+    // Find peak level and detect clipping
+    let maxAmplitude = 0;
+    let isClipping = false;
+    
+    for (let i = startIndex; i < timeDomainData.length; i++) {
+        const amplitude = Math.abs(timeDomainData[i] - 128) / 128;
+        maxAmplitude = Math.max(maxAmplitude, amplitude);
+        
+        // Detect clipping (values at extremes)
+        if (timeDomainData[i] <= 1 || timeDomainData[i] >= 254) {
+            isClipping = true;
+        }
+    }
+    
+    // Update clipping state
+    if (isClipping) {
+        studioState.scopeClipping = true;
+        studioState.scopeClipTime = now;
+    } else if (now - studioState.scopeClipTime > 300) {
+        // Clear clipping indicator after 300ms
+        studioState.scopeClipping = false;
+    }
+    
+    // Auto-scaling: smoothly track peak level
+    // Target: normal speech (~0.3-0.5) fills 70% of height
+    const targetScale = 0.7;
+    const idealPeak = maxAmplitude > 0.01 ? maxAmplitude : 0.3; // Avoid div by zero
+    
+    // Smooth peak tracking (fast attack, slow release)
+    if (idealPeak > studioState.scopePeakLevel) {
+        studioState.scopePeakLevel = idealPeak; // Fast attack
+    } else {
+        studioState.scopePeakLevel = studioState.scopePeakLevel * 0.995 + idealPeak * 0.005; // Slow release
+    }
+    
+    // Calculate scale factor so peak fills targetScale of height
+    const scaleFactor = targetScale / Math.max(studioState.scopePeakLevel, 0.1);
+    
+    // Clear background - flash red on clipping
+    if (studioState.scopeClipping) {
+        ctx.fillStyle = '#2a0a0a'; // Dark red tint
+    } else {
+        ctx.fillStyle = '#0a0a0a';
+    }
     ctx.fillRect(0, 0, width, height);
+    
+    // Draw subtle grid lines at ±50%
+    ctx.strokeStyle = '#1a1a1a';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(0, centerY - height * 0.25);
+    ctx.lineTo(width, centerY - height * 0.25);
+    ctx.moveTo(0, centerY + height * 0.25);
+    ctx.lineTo(width, centerY + height * 0.25);
+    ctx.stroke();
     
     // Draw center line (zero crossing reference)
     ctx.strokeStyle = '#333';
-    ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.moveTo(0, centerY);
     ctx.lineTo(width, centerY);
     ctx.stroke();
     
     // Draw waveform
-    ctx.strokeStyle = '#00ff88';
+    ctx.strokeStyle = studioState.scopeClipping ? '#ff4444' : '#00ff88';
     ctx.lineWidth = 2;
     ctx.beginPath();
     
     // Map time domain data to canvas
-    // getByteTimeDomainData returns values 0-255, with 128 being center (silence)
-    const bufferLength = timeDomainData.length;
-    const sliceWidth = width / bufferLength;
+    const sliceWidth = width / samplesToShow;
     
     let x = 0;
-    for (let i = 0; i < bufferLength; i++) {
+    for (let i = startIndex; i < timeDomainData.length; i++) {
         // Convert 0-255 to normalized value (-1 to +1)
         const v = (timeDomainData[i] - 128) / 128;
-        const y = centerY - (v * centerY * 0.9); // 0.9 adds slight padding
         
-        if (i === 0) {
+        // Apply auto-scaling, clamped to ±1
+        const scaled = Math.max(-1, Math.min(1, v * scaleFactor));
+        const y = centerY - (scaled * centerY * 0.95); // 0.95 for slight padding
+        
+        if (i === startIndex) {
             ctx.moveTo(x, y);
         } else {
             ctx.lineTo(x, y);
@@ -524,6 +592,13 @@ function drawOscilloscope(ctx, canvas, timeDomainData) {
     }
     
     ctx.stroke();
+    
+    // Draw clipping indicator in corner
+    if (studioState.scopeClipping) {
+        ctx.fillStyle = '#ff4444';
+        ctx.font = 'bold 10px sans-serif';
+        ctx.fillText('CLIP', width - 32, 14);
+    }
 }
 
 /**
@@ -707,6 +782,9 @@ export async function cleanupStudio() {
     studioState.frequencyData = null;
     studioState.oscilloscopeCtx = null;
     studioState.timeDomainData = null;
+    studioState.scopePeakLevel = 0;
+    studioState.scopeClipping = false;
+    studioState.scopeClipTime = 0;
     studioState.isRunning = false;
     studioState.isRecording = false;
     studioState.waveformData = [];
