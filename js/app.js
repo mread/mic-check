@@ -82,6 +82,26 @@ import {
     getMonitorAnalyser
 } from './monitor.js';
 
+import {
+    initStudio,
+    startVisualization as startStudioVisualization,
+    cleanupStudio,
+    populateStudioDeviceDropdown,
+    startRecording as startStudioRecording,
+    stopRecording as stopStudioRecording,
+    getRecordingTime,
+    hasRecording,
+    getRecordingUrl,
+    deleteRecording,
+    isRecording as isStudioRecording,
+    resetPeaks,
+    setProcessingEnabled,
+    isProcessingEnabled,
+    drawWaveformPreview,
+    switchDevice as switchStudioDevice,
+    isRunning as isStudioRunning
+} from './studio.js';
+
 import { escapeHtml } from './utils.js';
 
 import { route, navigate, initRouter } from './router.js';
@@ -671,6 +691,373 @@ export function stopMonitor() {
     cleanupMonitor();
 }
 
+// ============================================
+// Studio Monitor Screen (DAW-style)
+// ============================================
+
+let studioAnimationTimer = null;
+let studioRecordingTimer = null;
+let studioPlaybackAudio = null;
+let selectedStudioDeviceId = null;
+let studioListenersAttached = false;
+
+/**
+ * Get all studio UI elements
+ */
+function getStudioElements() {
+    return {
+        // Transport
+        deviceSelect: document.getElementById('studio-device-select'),
+        btnRecord: document.getElementById('studio-btn-record'),
+        btnStop: document.getElementById('studio-btn-stop'),
+        btnPlay: document.getElementById('studio-btn-play'),
+        timeDisplay: document.getElementById('studio-time'),
+        statusDisplay: document.getElementById('studio-status'),
+        
+        // Permission prompt
+        permissionPrompt: document.getElementById('studio-permission-prompt'),
+        btnGrant: document.getElementById('studio-btn-grant'),
+        
+        // Visualization container
+        vizContainer: document.getElementById('studio-viz-container'),
+        spectrogramCanvas: document.getElementById('studio-spectrogram'),
+        
+        // Meters
+        meterLFill: document.getElementById('studio-meter-l-fill'),
+        meterLPeak: document.getElementById('studio-meter-l-peak'),
+        meterLValue: document.getElementById('studio-meter-l-value'),
+        meterRFill: document.getElementById('studio-meter-r-fill'),
+        meterRPeak: document.getElementById('studio-meter-r-peak'),
+        meterRValue: document.getElementById('studio-meter-r-value'),
+        
+        // Readouts
+        peakValue: document.getElementById('studio-peak-value'),
+        lufsValue: document.getElementById('studio-lufs-value'),
+        balanceValue: document.getElementById('studio-balance-value'),
+        
+        // Recording strip
+        recordingContainer: document.getElementById('studio-recording-container'),
+        recDot: document.getElementById('studio-rec-dot'),
+        recTime: document.getElementById('studio-rec-time'),
+        waveformCanvas: document.getElementById('studio-waveform-canvas'),
+        waveformEmpty: document.getElementById('studio-waveform-empty'),
+        recPlay: document.getElementById('studio-rec-play'),
+        recDelete: document.getElementById('studio-rec-delete'),
+        
+        // Processing toggle
+        processingToggle: document.getElementById('studio-processing-toggle'),
+        processingStatus: document.getElementById('studio-processing-status')
+    };
+}
+
+/**
+ * Initialize the studio monitor screen
+ */
+async function initStudioScreen() {
+    const els = getStudioElements();
+    
+    // Set up event listeners
+    setupStudioEventListeners(els);
+    
+    // Check permission status
+    const permStatus = await checkPermission();
+    
+    if (permStatus === 'granted') {
+        // Already have permission - show visualizations
+        await showStudioVisualizations(els);
+    } else {
+        // Show permission prompt
+        els.permissionPrompt.style.display = 'block';
+        els.vizContainer.style.display = 'none';
+        els.recordingContainer.style.display = 'none';
+        
+        // Disable transport controls
+        els.btnRecord.disabled = true;
+        els.btnStop.disabled = true;
+        els.btnPlay.disabled = true;
+    }
+}
+
+/**
+ * Show studio visualizations after permission granted
+ */
+async function showStudioVisualizations(els) {
+    // Hide permission prompt, show viz
+    els.permissionPrompt.style.display = 'none';
+    els.vizContainer.style.display = 'block';
+    els.recordingContainer.style.display = 'block';
+    
+    // Populate device dropdown
+    await populateStudioDeviceDropdown(els.deviceSelect, selectedStudioDeviceId);
+    
+    // Get device to use
+    const deviceId = els.deviceSelect.value || selectedStudioDeviceId;
+    
+    if (deviceId) {
+        await startStudioMonitor(deviceId, els);
+    }
+}
+
+/**
+ * Start the studio monitor with a device
+ */
+async function startStudioMonitor(deviceId, els) {
+    const result = await initStudio(deviceId);
+    
+    if (result.success) {
+        selectedStudioDeviceId = deviceId;
+        
+        // Enable transport controls
+        els.btnRecord.disabled = false;
+        els.btnStop.disabled = true;
+        els.btnPlay.disabled = !hasRecording();
+        els.statusDisplay.textContent = 'Monitoring';
+        els.statusDisplay.className = 'transport-status';
+        
+        // Start visualization
+        startStudioVisualization(els);
+        
+    } else {
+        els.statusDisplay.textContent = result.error || 'Error';
+        els.statusDisplay.className = 'transport-status';
+        console.warn('Failed to start studio:', result.error);
+    }
+}
+
+/**
+ * Set up event listeners for studio screen
+ */
+function setupStudioEventListeners(els) {
+    // Guard against duplicate listeners on re-navigation
+    if (studioListenersAttached) return;
+    studioListenersAttached = true;
+    
+    // Grant permission button
+    els.btnGrant?.addEventListener('click', async () => {
+        try {
+            // Request mic access
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            stream.getTracks().forEach(t => t.stop()); // Release immediately
+            
+            // Now show visualizations
+            await showStudioVisualizations(els);
+        } catch (err) {
+            console.error('Permission denied:', err);
+            els.btnGrant.textContent = 'Permission Denied';
+            els.btnGrant.disabled = true;
+        }
+    });
+    
+    // Device select
+    els.deviceSelect?.addEventListener('change', async (e) => {
+        const deviceId = e.target.value;
+        if (deviceId) {
+            // Stop any recording in progress
+            if (isStudioRecording()) {
+                stopStudioRecording();
+                updateStudioRecordingUI(els, false);
+            }
+            await startStudioMonitor(deviceId, els);
+        }
+    });
+    
+    // Record button
+    els.btnRecord?.addEventListener('click', async () => {
+        if (isStudioRecording()) return;
+        
+        els.btnRecord.classList.add('recording');
+        els.btnRecord.disabled = true;
+        els.btnStop.disabled = false;
+        els.btnPlay.disabled = true;
+        els.recDot.classList.add('active');
+        els.statusDisplay.textContent = 'Recording';
+        els.statusDisplay.className = 'transport-status recording';
+        els.waveformEmpty.style.display = 'none';
+        
+        // Reset peaks when starting new recording
+        resetPeaks();
+        
+        // Start timer
+        const startTime = Date.now();
+        studioRecordingTimer = setInterval(() => {
+            const elapsed = (Date.now() - startTime) / 1000;
+            els.recTime.textContent = formatTime(elapsed);
+            els.timeDisplay.textContent = formatTime(elapsed);
+        }, 100);
+        
+        // Start recording
+        const success = await startStudioRecording();
+        
+        // Recording ended (either completed or stopped)
+        clearInterval(studioRecordingTimer);
+        updateStudioRecordingUI(els, success);
+    });
+    
+    // Stop button
+    els.btnStop?.addEventListener('click', () => {
+        if (isStudioRecording()) {
+            // Clear the recording timer
+            if (studioRecordingTimer) {
+                clearInterval(studioRecordingTimer);
+                studioRecordingTimer = null;
+            }
+            stopStudioRecording();
+        }
+        if (studioPlaybackAudio) {
+            studioPlaybackAudio.pause();
+            studioPlaybackAudio.currentTime = 0;
+            updateStudioPlaybackUI(els, false);
+        }
+    });
+    
+    // Play button (transport)
+    els.btnPlay?.addEventListener('click', () => {
+        toggleStudioPlayback(els);
+    });
+    
+    // Recording strip play button
+    els.recPlay?.addEventListener('click', () => {
+        toggleStudioPlayback(els);
+    });
+    
+    // Delete recording
+    els.recDelete?.addEventListener('click', () => {
+        deleteRecording();
+        els.waveformEmpty.style.display = 'flex';
+        els.recPlay.disabled = true;
+        els.recDelete.disabled = true;
+        els.btnPlay.disabled = true;
+        els.recTime.textContent = '00:00';
+        els.timeDisplay.textContent = '00:00';
+        
+        // Clear waveform canvas
+        const ctx = els.waveformCanvas?.getContext('2d');
+        if (ctx) {
+            ctx.clearRect(0, 0, els.waveformCanvas.width, els.waveformCanvas.height);
+        }
+    });
+    
+    // Processing toggle
+    els.processingToggle?.addEventListener('change', async (e) => {
+        const enabled = e.target.checked;
+        setProcessingEnabled(enabled);
+        els.processingStatus.textContent = enabled ? 'On' : 'Off';
+        
+        // Re-initialize with new settings if running (but not during recording)
+        if (isStudioRunning() && selectedStudioDeviceId && !isStudioRecording()) {
+            await startStudioMonitor(selectedStudioDeviceId, els);
+        }
+    });
+}
+
+/**
+ * Update UI after recording ends
+ */
+function updateStudioRecordingUI(els, success) {
+    els.btnRecord.classList.remove('recording');
+    els.btnRecord.disabled = false;
+    els.btnStop.disabled = true;
+    els.recDot.classList.remove('active');
+    els.statusDisplay.textContent = 'Monitoring';
+    els.statusDisplay.className = 'transport-status';
+    
+    if (success && hasRecording()) {
+        els.recPlay.disabled = false;
+        els.recDelete.disabled = false;
+        els.btnPlay.disabled = false;
+        
+        // Draw waveform preview
+        drawWaveformPreview(els.waveformCanvas);
+    }
+}
+
+/**
+ * Toggle playback (play/stop)
+ */
+function toggleStudioPlayback(els) {
+    if (studioPlaybackAudio && !studioPlaybackAudio.paused) {
+        // Stop playback
+        studioPlaybackAudio.pause();
+        studioPlaybackAudio.currentTime = 0;
+        updateStudioPlaybackUI(els, false);
+    } else {
+        // Start playback
+        playStudioRecording(els);
+    }
+}
+
+/**
+ * Play the studio recording
+ */
+function playStudioRecording(els) {
+    const url = getRecordingUrl();
+    if (!url) return;
+    
+    if (!studioPlaybackAudio) {
+        studioPlaybackAudio = new Audio();
+        studioPlaybackAudio.addEventListener('ended', () => {
+            updateStudioPlaybackUI(els, false);
+        });
+    }
+    
+    studioPlaybackAudio.src = url;
+    studioPlaybackAudio.play();
+    updateStudioPlaybackUI(els, true);
+}
+
+/**
+ * Update UI for playback state
+ */
+function updateStudioPlaybackUI(els, isPlaying) {
+    if (isPlaying) {
+        els.btnPlay.classList.add('playing');
+        els.recPlay.classList.add('playing');
+        els.recPlay.textContent = '⏹ Stop';
+        els.statusDisplay.textContent = 'Playing';
+        els.statusDisplay.className = 'transport-status playing';
+    } else {
+        els.btnPlay.classList.remove('playing');
+        els.recPlay.classList.remove('playing');
+        els.recPlay.textContent = '▶ Play';
+        els.statusDisplay.textContent = 'Monitoring';
+        els.statusDisplay.className = 'transport-status';
+    }
+}
+
+/**
+ * Format seconds to MM:SS
+ */
+function formatTime(seconds) {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+}
+
+/**
+ * Stop the studio monitor
+ */
+function stopStudioScreen() {
+    // Stop any recording
+    if (isStudioRecording()) {
+        stopStudioRecording();
+    }
+    
+    // Stop playback
+    if (studioPlaybackAudio) {
+        studioPlaybackAudio.pause();
+        studioPlaybackAudio = null;
+    }
+    
+    // Clear timers
+    if (studioRecordingTimer) {
+        clearInterval(studioRecordingTimer);
+        studioRecordingTimer = null;
+    }
+    
+    // Cleanup studio
+    cleanupStudio();
+}
+
 /**
  * Handle device change in monitor dropdown
  */
@@ -1209,6 +1596,7 @@ function setupListeners() {
     const journeyRoutes = {
         'level-check': 'level-check',
         'monitor': 'monitor',
+        'studio': 'studio',
         'privacy': 'privacy'
     };
     
@@ -1357,10 +1745,9 @@ async function startSilenceRecording() {
     
     document.getElementById('silence-visualizer').style.display = 'block';
     
-    // Store user's AGC preference for voice phase, but always use AGC OFF for silence
-    // This gives us the true noise floor, not the AGC-boosted noise floor
-    const userAgcPreference = document.getElementById('agc-toggle')?.checked || false;
-    levelCheckState.userAgcPreference = userAgcPreference;
+    // Voice phase always uses AGC ON (simulates how browser apps hear you)
+    // Silence phase uses AGC OFF for accurate noise floor measurement
+    levelCheckState.userAgcPreference = true;
     
     const deviceSelect = document.getElementById('quality-device-select');
     const deviceId = deviceSelect?.value || '';
@@ -1394,7 +1781,6 @@ async function startSilenceRecording() {
     }
     
     updateQualityDeviceInfo('silence');
-    updateAgcStatusBar(false, '— measuring true noise floor');
     
     levelCheckState.noiseFloorSamples = [];
     const duration = 5000;
@@ -1726,6 +2112,12 @@ function init() {
         onLeave: stopMonitor
     });
     
+    route('studio', {
+        screen: 'screen-studio',
+        onEnter: initStudioScreen,
+        onLeave: stopStudioScreen
+    });
+    
     route('privacy', {
         screen: 'screen-privacy',
         onEnter: runPrivacyCheck,
@@ -1742,6 +2134,7 @@ function init() {
         navigate,
         stopTest,
         stopMonitor,
+        stopStudioScreen,
         stopLevelCheck,
         runPrivacyCheck,
         continueWithPermissionTests,

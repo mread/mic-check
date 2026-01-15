@@ -140,7 +140,7 @@
         
         .home-secondary {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
+            grid-template-columns: repeat(4, 1fr);
             gap: 0.75rem;
         }
         
@@ -1055,6 +1055,451 @@
             margin-top: 0.5rem;
         }
         
+        /* Studio Monitor Screen - DAW-inspired layout */
+        .studio-layout {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        
+        /* Transport Bar - device selection and controls */
+        .studio-transport {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 0.75rem 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            flex-wrap: wrap;
+        }
+        
+        .studio-transport-device {
+            flex: 1;
+            min-width: 200px;
+        }
+        
+        .studio-transport-device select {
+            width: 100%;
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.9rem;
+            background: white;
+        }
+        
+        .studio-transport-controls {
+            display: flex;
+            gap: 0.5rem;
+            align-items: center;
+        }
+        
+        .transport-btn {
+            width: 44px;
+            height: 44px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--bg-elevated);
+            font-size: 1.25rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.15s ease;
+        }
+        
+        .transport-btn:hover {
+            border-color: var(--accent);
+            background: var(--accent-light);
+        }
+        
+        .transport-btn.recording {
+            background: var(--problem);
+            border-color: var(--problem);
+            color: white;
+            animation: recordPulse 1s ease-in-out infinite;
+        }
+        
+        .transport-btn.playing {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: white;
+        }
+        
+        .transport-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
+        @keyframes recordPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+        
+        .transport-time {
+            font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 1.1rem;
+            font-weight: 600;
+            min-width: 70px;
+            text-align: center;
+            padding: 0.5rem;
+            background: var(--bg-muted);
+            border-radius: 6px;
+        }
+        
+        .transport-status {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .transport-status.recording {
+            color: var(--problem);
+            font-weight: 600;
+        }
+        
+        .transport-status.playing {
+            color: var(--accent);
+            font-weight: 600;
+        }
+        
+        /* Main visualization area */
+        .studio-viz-main {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+        }
+        
+        .studio-section-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+        
+        /* Hero Spectrogram */
+        .studio-spectrogram {
+            margin-bottom: 1.25rem;
+        }
+        
+        .studio-spectrogram-container {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .studio-spectrogram-axis {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            padding: 2px 0;
+            text-align: right;
+            min-width: 40px;
+        }
+        
+        .studio-spectrogram-canvas-wrap {
+            flex: 1;
+            position: relative;
+        }
+        
+        .studio-spectrogram-canvas {
+            width: 100%;
+            height: 180px;
+            border-radius: 4px;
+            background: #0a0a0a;
+        }
+        
+        .studio-spectrogram-time {
+            text-align: center;
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+        
+        /* Stereo Level Meters */
+        .studio-meters {
+            margin-bottom: 1.25rem;
+        }
+        
+        .studio-meter-row {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.35rem;
+        }
+        
+        .studio-meter-label {
+            font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.75rem;
+            font-weight: 600;
+            width: 16px;
+            text-align: center;
+            color: var(--text-secondary);
+        }
+        
+        .studio-meter-bar {
+            flex: 1;
+            height: 24px;
+            background: linear-gradient(90deg, 
+                #1a3d1a 0%, #1a3d1a 60%,
+                #3d3d1a 60%, #3d3d1a 85%,
+                #3d1a1a 85%, #3d1a1a 100%
+            );
+            border-radius: 3px;
+            overflow: hidden;
+            position: relative;
+            border: 1px solid #333;
+        }
+        
+        .studio-meter-fill {
+            position: absolute;
+            top: 0;
+            left: 0;
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(90deg, 
+                #22c55e 0%, #22c55e 60%,
+                #eab308 60%, #eab308 85%,
+                #ef4444 85%, #ef4444 100%
+            );
+            border-radius: 2px;
+            transition: clip-path 0.03s ease;
+            clip-path: inset(0 100% 0 0);
+        }
+        
+        .studio-meter-peak {
+            position: absolute;
+            top: 0;
+            width: 2px;
+            height: 100%;
+            background: white;
+            opacity: 0.8;
+            transition: left 0.05s ease;
+        }
+        
+        .studio-meter-value {
+            font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.75rem;
+            font-weight: 600;
+            min-width: 55px;
+            text-align: right;
+            color: var(--text-secondary);
+        }
+        
+        /* Readouts row */
+        .studio-readouts {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+        
+        .studio-readout {
+            flex: 1;
+            min-width: 140px;
+            padding: 0.75rem 1rem;
+            background: var(--bg-muted);
+            border-radius: 8px;
+            text-align: center;
+        }
+        
+        .studio-readout-label {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 0.25rem;
+        }
+        
+        .studio-readout-value {
+            font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+        
+        .studio-readout-value.good {
+            color: var(--success);
+        }
+        
+        .studio-readout-value.warn {
+            color: var(--warning);
+        }
+        
+        .studio-readout-value.bad {
+            color: var(--problem);
+        }
+        
+        /* Recording Strip */
+        .studio-recording {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1rem;
+        }
+        
+        .studio-recording-strip {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .studio-recording-info {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            min-width: 80px;
+        }
+        
+        .studio-recording-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--text-muted);
+        }
+        
+        .studio-recording-dot.active {
+            background: var(--problem);
+            animation: recordPulse 1s ease-in-out infinite;
+        }
+        
+        .studio-recording-time {
+            font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.9rem;
+            font-weight: 600;
+        }
+        
+        .studio-recording-waveform {
+            flex: 1;
+            height: 48px;
+            background: var(--bg-muted);
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .studio-recording-waveform canvas {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .studio-recording-empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+        }
+        
+        .studio-recording-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .studio-recording-btn {
+            padding: 0.5rem 0.75rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            background: var(--bg-elevated);
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        
+        .studio-recording-btn:hover {
+            border-color: var(--accent);
+            background: var(--accent-light);
+        }
+        
+        .studio-recording-btn.playing {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+        
+        .studio-recording-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
+        /* Processing toggle in recording strip */
+        .studio-processing-toggle {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid var(--border-light);
+            font-size: 0.85rem;
+        }
+        
+        .studio-processing-label {
+            color: var(--text-secondary);
+        }
+        
+        .studio-processing-toggle .toggle-switch {
+            transform: scale(0.85);
+        }
+        
+        /* Permission prompt for studio */
+        .studio-permission-prompt {
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .studio-permission-prompt p {
+            color: var(--text-secondary);
+            margin-bottom: 1rem;
+        }
+        
+        /* Mobile adjustments for studio */
+        @media (max-width: 600px) {
+            .studio-transport {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .studio-transport-device {
+                min-width: auto;
+            }
+            
+            .studio-transport-controls {
+                justify-content: center;
+            }
+            
+            .studio-spectrogram-canvas {
+                height: 120px;
+            }
+            
+            .studio-meter-row {
+                flex-wrap: wrap;
+            }
+            
+            .studio-meter-bar {
+                order: 3;
+                flex: 1 1 100%;
+            }
+            
+            .studio-readouts {
+                flex-direction: column;
+            }
+            
+            .studio-recording-strip {
+                flex-wrap: wrap;
+            }
+            
+            .studio-recording-waveform {
+                order: 3;
+                flex: 1 1 100%;
+            }
+        }
+        
         /* Footer */
         footer {
             text-align: center;
@@ -1122,6 +1567,12 @@
                         <div class="journey-icon">📡</div>
                         <div class="journey-title">Monitor</div>
                         <div class="journey-desc">Visualize your audio</div>
+                    </div>
+                    
+                    <div class="journey-card" data-journey="studio" role="button" tabindex="0">
+                        <div class="journey-icon">🎚️</div>
+                        <div class="journey-title">Studio</div>
+                        <div class="journey-desc">Pro audio monitoring</div>
                     </div>
                     
                     <div class="journey-card" data-journey="privacy" role="button" tabindex="0">
@@ -1277,12 +1728,6 @@
                     </div>
                 </div>
                 
-                <!-- Persistent AGC status indicator -->
-                <div id="agc-status-bar" class="agc-status agc-off" style="display: none; margin-bottom: 1rem;">
-                    <span id="agc-status-icon">🔇</span>
-                    <span id="agc-status-text">AGC: Off</span>
-                    <span id="agc-status-detail" class="detail"></span>
-                </div>
                 
                 <div id="quality-intro">
                     <p style="color: var(--text-secondary); margin-bottom: 1rem;">
@@ -1307,8 +1752,8 @@
                             optimize your hardware and OS settings for the best results.</p>
                             
                             <p style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--text-muted);">
-                                <strong>For desktop apps:</strong> If you use Discord, OBS, or streaming software, try testing with AGC OFF 
-                                to measure your raw levels against broadcast standards (-14 to -16 LUFS).
+                                <strong>For desktop apps:</strong> If you use Discord, OBS, or streaming software, use the <strong>Monitor</strong> page
+                                to test with processing off and measure your raw levels against broadcast standards (-14 to -16 LUFS).
                             </p>
                             <p style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--text-muted);">
                                 <strong>Technical note:</strong> We measure LUFS per <a href="https://www.itu.int/rec/R-REC-BS.1770" target="_blank" style="color: var(--accent);">ITU-R BS.1770-4</a> — the same standard used by Spotify, YouTube, and broadcast tools. This includes K-weighting filters (for perceptual accuracy), 400ms integration windows, and two-stage gating (to ignore silence). Algorithm structure informed by <a href="https://github.com/goepfert/loudness_adaption_demo" target="_blank" style="color: var(--accent);">goepfert/loudness_adaption_demo</a>.
@@ -1326,18 +1771,6 @@
                         </button>
                     </div>
                     
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px;">
-                        <div>
-                            <strong>Audio Processing</strong>
-                            <div id="agc-description" style="font-size: 0.85rem; color: var(--text-secondary);">
-                                On = AGC, noise suppression, echo cancellation (how browser apps hear you)
-                            </div>
-                        </div>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="agc-toggle" checked onchange="document.getElementById('agc-description').textContent = this.checked ? 'On = AGC, noise suppression, echo cancellation (how browser apps hear you)' : 'Off = raw microphone signal (for desktop apps, streaming)'">
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </div>
                     
                     <button id="btn-quality-start" class="btn btn-primary btn-large" style="width: 100%;">
                         Start Level Check
@@ -1588,7 +2021,136 @@
             </div>
         </div>
 
-        <!-- Screen 5: Privacy Check -->
+        <!-- Screen 5: Studio Monitor (DAW-style advanced monitoring) -->
+        <div id="screen-studio" class="screen">
+            <a href="#" class="back-link">← Back</a>
+            
+            <div class="studio-layout">
+                <!-- Transport Bar -->
+                <div class="studio-transport">
+                    <div class="studio-transport-device">
+                        <select id="studio-device-select">
+                            <option value="">Select microphone...</option>
+                        </select>
+                    </div>
+                    
+                    <div class="studio-transport-controls">
+                        <button id="studio-btn-record" class="transport-btn" title="Record" disabled>
+                            ⏺
+                        </button>
+                        <button id="studio-btn-stop" class="transport-btn" title="Stop" disabled>
+                            ⏹
+                        </button>
+                        <button id="studio-btn-play" class="transport-btn" title="Play" disabled>
+                            ▶
+                        </button>
+                        <div class="transport-time" id="studio-time">00:00</div>
+                        <div class="transport-status" id="studio-status">Ready</div>
+                    </div>
+                </div>
+                
+                <!-- Permission Prompt (shown until mic access granted) -->
+                <div id="studio-permission-prompt" class="studio-viz-main studio-permission-prompt">
+                    <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🎚️</div>
+                    <p>Grant microphone access to start monitoring</p>
+                    <button id="studio-btn-grant" class="btn btn-primary">
+                        Enable Microphone
+                    </button>
+                </div>
+                
+                <!-- Main Visualization (shown after permission) -->
+                <div id="studio-viz-container" class="studio-viz-main" style="display: none;">
+                    <!-- Spectrogram -->
+                    <div class="studio-spectrogram">
+                        <div class="studio-section-label">Spectrogram</div>
+                        <div class="studio-spectrogram-container">
+                            <div class="studio-spectrogram-axis">
+                                <span>20k</span>
+                                <span>8k</span>
+                                <span>1k</span>
+                                <span>100</span>
+                            </div>
+                            <div class="studio-spectrogram-canvas-wrap">
+                                <canvas id="studio-spectrogram" class="studio-spectrogram-canvas" width="700" height="180"></canvas>
+                                <div class="studio-spectrogram-time">← time</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Stereo Level Meters -->
+                    <div class="studio-meters">
+                        <div class="studio-section-label">Levels</div>
+                        <div class="studio-meter-row">
+                            <span class="studio-meter-label">L</span>
+                            <div class="studio-meter-bar">
+                                <div id="studio-meter-l-fill" class="studio-meter-fill"></div>
+                                <div id="studio-meter-l-peak" class="studio-meter-peak" style="left: 0;"></div>
+                            </div>
+                            <span id="studio-meter-l-value" class="studio-meter-value">-∞ dB</span>
+                        </div>
+                        <div class="studio-meter-row">
+                            <span class="studio-meter-label">R</span>
+                            <div class="studio-meter-bar">
+                                <div id="studio-meter-r-fill" class="studio-meter-fill"></div>
+                                <div id="studio-meter-r-peak" class="studio-meter-peak" style="left: 0;"></div>
+                            </div>
+                            <span id="studio-meter-r-value" class="studio-meter-value">-∞ dB</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Readouts -->
+                    <div class="studio-readouts">
+                        <div class="studio-readout">
+                            <div class="studio-readout-label">Peak</div>
+                            <div id="studio-peak-value" class="studio-readout-value">-∞</div>
+                        </div>
+                        <div class="studio-readout">
+                            <div class="studio-readout-label">LUFS (short-term)</div>
+                            <div id="studio-lufs-value" class="studio-readout-value">-∞</div>
+                        </div>
+                        <div class="studio-readout">
+                            <div class="studio-readout-label">Balance</div>
+                            <div id="studio-balance-value" class="studio-readout-value">—</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Recording Strip (shown after permission) -->
+                <div id="studio-recording-container" class="studio-recording" style="display: none;">
+                    <div class="studio-section-label">Recording</div>
+                    <div class="studio-recording-strip">
+                        <div class="studio-recording-info">
+                            <span id="studio-rec-dot" class="studio-recording-dot"></span>
+                            <span id="studio-rec-time" class="studio-recording-time">00:00</span>
+                        </div>
+                        
+                        <div class="studio-recording-waveform">
+                            <canvas id="studio-waveform-canvas" width="600" height="40"></canvas>
+                            <div id="studio-waveform-empty" class="studio-recording-empty">
+                                Press ⏺ to record
+                            </div>
+                        </div>
+                        
+                        <div class="studio-recording-actions">
+                            <button id="studio-rec-play" class="studio-recording-btn" disabled>▶ Play</button>
+                            <button id="studio-rec-delete" class="studio-recording-btn" disabled>🗑</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Processing toggle -->
+                    <div class="studio-processing-toggle">
+                        <span class="studio-processing-label">Audio Processing (AGC, noise suppression):</span>
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="studio-processing-toggle" checked>
+                            <span class="toggle-slider"></span>
+                        </label>
+                        <span id="studio-processing-status" style="font-size: 0.8rem; color: var(--text-muted);">On</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Screen 6: Privacy Check -->
         <div id="screen-privacy" class="screen">
             <a href="#" class="back-link">← Back</a>
             

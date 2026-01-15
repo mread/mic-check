@@ -118,7 +118,22 @@ export class PlaybackRecorder {
     }
     
     /**
-     * Abort an in-progress recording
+     * Stop the recording gracefully (creates the blob)
+     */
+    stop() {
+        if (this.stopTimeout) {
+            clearTimeout(this.stopTimeout);
+            this.stopTimeout = null;
+        }
+        
+        if (this.mediaRecorder && this.mediaRecorder.state === 'recording') {
+            this.mediaRecorder.stop();
+        }
+        // Note: isRecording will be set to false in onstop handler
+    }
+    
+    /**
+     * Abort an in-progress recording (discards the recording)
      */
     abort() {
         this.aborted = true;
