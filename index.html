@@ -905,6 +905,75 @@
             50% { opacity: 0.3; }
         }
         
+        /* Playback Mode Toggle - gaming audio software inspired */
+        .playback-mode-toggle {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem 1rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, var(--bg-muted) 0%, #e8eaed 100%);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            transition: all 0.2s ease;
+        }
+        
+        .playback-mode-toggle:hover {
+            border-color: var(--accent);
+            box-shadow: 0 2px 8px rgba(26, 115, 232, 0.1);
+        }
+        
+        .playback-mode-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .playback-mode-icon {
+            font-size: 1.5rem;
+            filter: drop-shadow(0 1px 2px rgba(0,0,0,0.1));
+        }
+        
+        .playback-mode-text {
+            line-height: 1.3;
+        }
+        
+        .playback-mode-text strong {
+            font-size: 0.95rem;
+            color: var(--text);
+        }
+        
+        .playback-mode-desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+        
+        .playback-mode-error {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            margin-bottom: 0.75rem;
+            background: var(--warning-light);
+            border-radius: 6px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+        
+        .playback-mode-error .error-icon {
+            font-size: 1rem;
+        }
+        
+        /* Disabled state for toggle when one mode unavailable */
+        .playback-mode-toggle.disabled {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        
+        .playback-mode-toggle.disabled .toggle-switch {
+            opacity: 0.5;
+        }
+        
         /* Collapsible sections */
         .collapsible-section {
             border: 1px solid var(--border);
@@ -1449,8 +1518,31 @@
                             <p style="color: var(--text-secondary); font-size: 0.85rem;">Speak now!</p>
                         </div>
                         
-                        <!-- Ready to play state -->
-                        <div id="playback-ready" class="playback-section" style="display: none;">
+                        <!-- Playback controls - visible after recording completes (during ready AND playing states) -->
+                        <div id="playback-controls" class="playback-section" style="display: none;">
+                            <!-- Playback mode toggle - processed vs raw -->
+                            <div id="playback-mode-selector" class="playback-mode-toggle">
+                                <div class="playback-mode-info">
+                                    <span class="playback-mode-icon" id="playback-mode-icon">🔊</span>
+                                    <div class="playback-mode-text">
+                                        <strong id="playback-mode-label">Audio Processing</strong>
+                                        <div id="playback-mode-description" class="playback-mode-desc">
+                                            What browser apps hear
+                                        </div>
+                                    </div>
+                                </div>
+                                <label class="toggle-switch">
+                                    <input type="checkbox" id="playback-processing-toggle" checked>
+                                    <span class="toggle-slider"></span>
+                                </label>
+                            </div>
+                            
+                            <!-- Error state when one stream failed -->
+                            <div id="playback-mode-error" class="playback-mode-error" style="display: none;">
+                                <span class="error-icon">⚠️</span>
+                                <span id="playback-mode-error-text">Raw recording unavailable</span>
+                            </div>
+                            
                             <div id="playback-warning" class="status-card warning" style="display: none; margin-bottom: 1rem;">
                                 <span class="status-icon">🔇</span>
                                 <div class="status-text">
@@ -1461,7 +1553,9 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="btn-group" style="justify-content: center;">
+                            
+                            <!-- Ready state buttons -->
+                            <div id="playback-ready-buttons" class="btn-group" style="justify-content: center;">
                                 <button id="btn-play-recording" class="btn btn-primary">
                                     ▶️ Play Recording
                                 </button>
@@ -1469,14 +1563,14 @@
                                     🔄 Record Again
                                 </button>
                             </div>
-                        </div>
-                        
-                        <!-- Playing state -->
-                        <div id="playback-playing" class="playback-section" style="display: none; text-align: center;">
-                            <div style="font-size: 1.25rem; margin-bottom: 0.5rem;">🔊 Playing...</div>
-                            <button id="btn-stop-playback" class="btn btn-secondary btn-small">
-                                ⏹️ Stop
-                            </button>
+                            
+                            <!-- Playing state buttons -->
+                            <div id="playback-playing-buttons" style="display: none; text-align: center;">
+                                <div style="font-size: 1.1rem; margin-bottom: 0.5rem; color: var(--accent);">🔊 Playing...</div>
+                                <button id="btn-stop-playback" class="btn btn-secondary btn-small">
+                                    ⏹️ Stop
+                                </button>
+                            </div>
                         </div>
                         
                         <!-- Hidden audio element -->
