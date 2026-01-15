@@ -121,9 +121,11 @@ export async function initStudio(deviceId) {
         // Create source
         studioState.source = studioState.audioContext.createMediaStreamSource(stream);
         
-        // Main analyser for spectrogram
+        // Main analyser for spectrogram and spectrum
+        // Using 8192 for better bass resolution (~5.9Hz per bin at 48kHz)
+        // vs 2048 which gives ~23.4Hz per bin - too coarse for 80-200Hz bass range
         studioState.analyser = studioState.audioContext.createAnalyser();
-        studioState.analyser.fftSize = 2048;
+        studioState.analyser.fftSize = 8192;
         studioState.analyser.smoothingTimeConstant = 0.3;
         
         // Channel splitter for stereo meters
@@ -519,6 +521,10 @@ function drawSpectrogram(ctx, canvas, frequencyData) {
  * - 32 bars (professional look, good frequency resolution)
  * - 80Hz-16kHz range (covers speech and music fundamentals)
  * - Logarithmic scaling (matches human hearing perception)
+ * 
+ * Bass resolution: Using 8192 FFT at 48kHz gives ~5.9Hz per bin.
+ * Each bar averages only the bins within its logarithmic frequency band,
+ * preventing bass blur from fixed-width bin averaging.
  */
 function drawSpectrum(ctx, canvas, frequencyData, sampleRate) {
     const width = canvas.width;
@@ -530,12 +536,14 @@ function drawSpectrum(ctx, canvas, frequencyData, sampleRate) {
     ctx.fillRect(0, 0, width, height);
     
     // Frequency resolution: each bin represents sampleRate / (2 * numBins) Hz
-    // At 48kHz with 2048 FFT: ~23.4Hz per bin, max freq = 24kHz
+    // At 48kHz with 8192 FFT: ~5.9Hz per bin, max freq = 24kHz
     const binFrequency = sampleRate / (2 * numBins);
     
     // Logarithmic frequency range (recommended: 80Hz-16kHz)
-    const minLogFreq = Math.log10(80);      // Start at 80Hz
-    const maxLogFreq = Math.log10(16000);   // End at 16kHz
+    const minFreq = 80;
+    const maxFreq = 16000;
+    const minLogFreq = Math.log10(minFreq);
+    const maxLogFreq = Math.log10(maxFreq);
     const logRange = maxLogFreq - minLogFreq;
     
     // 32 bars recommended for professional look with good resolution
@@ -544,23 +552,27 @@ function drawSpectrum(ctx, canvas, frequencyData, sampleRate) {
     const gap = 2;
     
     for (let i = 0; i < numBars; i++) {
-        // Map bar position to frequency (logarithmic)
-        const logFreq = minLogFreq + (i / numBars) * logRange;
-        const freq = Math.pow(10, logFreq);
+        // Calculate the frequency range for this bar (logarithmic bands)
+        const logFreqLow = minLogFreq + (i / numBars) * logRange;
+        const logFreqHigh = minLogFreq + ((i + 1) / numBars) * logRange;
+        const freqLow = Math.pow(10, logFreqLow);
+        const freqHigh = Math.pow(10, logFreqHigh);
         
-        // Find corresponding FFT bin
-        const bin = Math.floor(freq / binFrequency);
-        if (bin >= numBins) continue;
+        // Find the FFT bins that fall within this frequency band
+        const binLow = Math.max(0, Math.floor(freqLow / binFrequency));
+        const binHigh = Math.min(numBins - 1, Math.ceil(freqHigh / binFrequency));
         
-        // Average a few bins for smoother display
+        if (binLow >= numBins) continue;
+        
+        // Average only the bins within this bar's frequency band
+        // This gives accurate bass representation (few bins) and smooth highs (many bins)
         let sum = 0;
         let count = 0;
-        const binSpread = Math.max(1, Math.floor(numBins / numBars / 2));
-        for (let j = Math.max(0, bin - binSpread); j <= Math.min(numBins - 1, bin + binSpread); j++) {
+        for (let j = binLow; j <= binHigh; j++) {
             sum += frequencyData[j];
             count++;
         }
-        const value = sum / count;
+        const value = count > 0 ? sum / count : 0;
         
         // Calculate bar height (0-255 -> 0-height)
         const barHeight = (value / 255) * height * 0.95;
