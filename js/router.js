@@ -54,6 +54,10 @@ function showScreen(screenId) {
     }
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     targetScreen.classList.add('active');
+    
+    // Track active screen on body for header styling
+    document.body.dataset.screen = screenId.replace('screen-', '');
+    
     window.scrollTo(0, 0);
 }
 

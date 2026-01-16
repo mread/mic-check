@@ -89,11 +89,17 @@ import {
     stopRecording as stopStudioRecording,
     getRecordingTime,
     hasRecording,
-    getRecordingUrl,
+    getRecordings,
+    getRecording,
     deleteRecording,
+    setRecordingProcessing,
+    setRecordingProcessed,
+    addRecordingToLibrary,
+    isRecordingsFull,
+    getMaxRecordings,
     isRecording as isStudioRecording,
     resetPeaks,
-    drawWaveformPreview,
+    getWaveformData,
     switchDevice as switchStudioDevice,
     isRunning as isStudioRunning,
     getChannelCount
@@ -996,13 +1002,8 @@ function downloadQualityReport() {
 
 let studioAnimationTimer = null;
 let studioRecordingTimer = null;
-let studioPlaybackAudio = null;
 let selectedStudioDeviceId = null;
 let studioListenersAttached = false;
-
-// Mastering state
-let masteringProcessedUrl = null;
-let masteringPlaybackAudio = null;
 
 /**
  * Get all studio UI elements
@@ -1044,24 +1045,18 @@ function getStudioElements() {
         balanceContainer: document.getElementById('studio-balance-container'),
         balanceValue: document.getElementById('studio-balance-value'),
         
-        // Recording strip
-        recordingContainer: document.getElementById('studio-recording-container'),
-        recDot: document.getElementById('studio-rec-dot'),
+        // Recordings library
+        recordingsContainer: document.getElementById('studio-recordings-container'),
+        recordingsCount: document.getElementById('studio-recordings-count'),
+        recordingStatus: document.getElementById('studio-recording-status'),
         recTime: document.getElementById('studio-rec-time'),
-        waveformCanvas: document.getElementById('studio-waveform-canvas'),
-        waveformEmpty: document.getElementById('studio-waveform-empty'),
-        recPlay: document.getElementById('studio-rec-play'),
-        recDelete: document.getElementById('studio-rec-delete'),
-        
-        // Mastering panel
-        masteringPanel: document.getElementById('studio-mastering'),
-        masterInputLufs: document.getElementById('mastering-input-lufs'),
-        masterOutputLufs: document.getElementById('mastering-output-lufs'),
-        masterStatus: document.getElementById('mastering-status'),
-        btnMasterProcess: document.getElementById('btn-master-process'),
-        btnMasterPlay: document.getElementById('btn-master-play')
+        recordingsList: document.getElementById('studio-recordings-list')
     };
 }
+
+// Track active playback per recording
+let activePlaybackId = null;
+let activePlaybackAudio = null;
 
 /**
  * Initialize the studio monitor screen
@@ -1082,7 +1077,7 @@ async function initStudioScreen() {
         // Show permission prompt
         els.permissionPrompt.style.display = 'block';
         els.vizContainer.style.display = 'none';
-        els.recordingContainer.style.display = 'none';
+        els.recordingsContainer.style.display = 'none';
         
         // Disable transport controls
         els.btnRecord.disabled = true;
@@ -1098,7 +1093,7 @@ async function showStudioVisualizations(els) {
     // Hide permission prompt, show viz
     els.permissionPrompt.style.display = 'none';
     els.vizContainer.style.display = 'block';
-    els.recordingContainer.style.display = 'block';
+    els.recordingsContainer.style.display = 'block';
     
     // Populate device dropdown
     await populateStudioDeviceDropdown(els.deviceSelect, selectedStudioDeviceId);
@@ -1109,6 +1104,9 @@ async function showStudioVisualizations(els) {
     if (deviceId) {
         await startStudioMonitor(deviceId, els);
     }
+    
+    // Render initial recordings list
+    renderRecordingsList(els);
 }
 
 /**
@@ -1230,7 +1228,7 @@ function setupStudioEventListeners(els) {
             // Stop any recording in progress
             if (isStudioRecording()) {
                 stopStudioRecording();
-                updateStudioRecordingUI(els, false);
+                hideRecordingStatus(els);
             }
             await startStudioMonitor(deviceId, els);
         }
@@ -1240,13 +1238,19 @@ function setupStudioEventListeners(els) {
     els.btnRecord?.addEventListener('click', async () => {
         if (isStudioRecording()) return;
         
+        // Check if at capacity
+        if (isRecordingsFull()) {
+            els.statusDisplay.textContent = `Max ${getMaxRecordings()} recordings`;
+            els.statusDisplay.className = 'transport-status';
+            return;
+        }
+        
         els.btnRecord.classList.add('recording');
         els.btnRecord.disabled = true;
         els.btnStop.disabled = false;
         els.btnPlay.disabled = true;
-        els.waveformEmpty.style.display = 'none';
         
-        // Show pre-roll state (brief delay to avoid capturing mouse click)
+        // Show pre-roll state
         els.statusDisplay.textContent = 'Starting...';
         els.statusDisplay.className = 'transport-status';
         
@@ -1259,11 +1263,11 @@ function setupStudioEventListeners(els) {
         // Wait a tick for pre-roll to begin, then show recording state
         setTimeout(() => {
             if (isStudioRecording()) {
-                els.recDot.classList.add('active');
+                showRecordingStatus(els);
                 els.statusDisplay.textContent = 'Recording';
                 els.statusDisplay.className = 'transport-status recording';
             }
-        }, 260); // Slightly after 250ms pre-roll
+        }, 260);
         
         // Start timer after pre-roll completes
         setTimeout(() => {
@@ -1275,13 +1279,13 @@ function setupStudioEventListeners(els) {
                     els.timeDisplay.textContent = formatTime(elapsed);
                 }, 100);
             }
-        }, 250); // Match pre-roll delay
+        }, 250);
         
-        const success = await recordingPromise;
+        const recordingUrl = await recordingPromise;
         
         // Recording ended (either completed or stopped)
         clearInterval(studioRecordingTimer);
-        updateStudioRecordingUI(els, success);
+        await handleRecordingComplete(els, recordingUrl);
     });
     
     // Stop button
@@ -1294,288 +1298,530 @@ function setupStudioEventListeners(els) {
             }
             stopStudioRecording();
         }
-        if (studioPlaybackAudio) {
-            studioPlaybackAudio.pause();
-            studioPlaybackAudio.currentTime = 0;
-            updateStudioPlaybackUI(els, false);
-        }
+        // Stop any active playback
+        stopActivePlayback(els);
     });
     
-    // Play button (transport)
+    // Play button (transport) - plays most recent recording
     els.btnPlay?.addEventListener('click', () => {
-        toggleStudioPlayback(els);
-    });
-    
-    // Recording strip play button
-    els.recPlay?.addEventListener('click', () => {
-        toggleStudioPlayback(els);
-    });
-    
-    // Delete recording
-    els.recDelete?.addEventListener('click', () => {
-        deleteRecording();
-        els.waveformEmpty.style.display = 'flex';
-        els.recPlay.disabled = true;
-        els.recDelete.disabled = true;
-        els.btnPlay.disabled = true;
-        els.recTime.textContent = '00:00';
-        els.timeDisplay.textContent = '00:00';
-        
-        // Clear waveform canvas
-        const ctx = els.waveformCanvas?.getContext('2d');
-        if (ctx) {
-            ctx.clearRect(0, 0, els.waveformCanvas.width, els.waveformCanvas.height);
+        const recordings = getRecordings();
+        if (recordings.length > 0) {
+            const latest = recordings[recordings.length - 1];
+            // Prefer processed if available, otherwise raw
+            const url = latest.processedUrl || latest.rawUrl;
+            const type = latest.processedUrl ? 'processed' : 'raw';
+            toggleRecordingPlayback(els, latest.id, type, url);
         }
-        
-        // Reset mastering panel
-        resetMasteringPanel(els);
     });
-    
-    // Mastering: Process button
-    els.btnMasterProcess?.addEventListener('click', async () => {
-        await processMasteringRecording(els);
-    });
-    
-    // Mastering: Play processed button
-    els.btnMasterPlay?.addEventListener('click', () => {
-        toggleMasteringPlayback(els);
-    });
-    
+}
+
+// ============================================
+// Recording Status UI
+// ============================================
+
+/**
+ * Show recording status indicator
+ */
+function showRecordingStatus(els) {
+    if (els.recordingStatus) {
+        els.recordingStatus.style.display = 'flex';
+    }
+    // Hide empty state while recording
+    const emptyState = els.recordingsList?.querySelector('.studio-recordings-empty');
+    if (emptyState) {
+        emptyState.style.display = 'none';
+    }
 }
 
 /**
- * Update UI after recording ends
+ * Hide recording status indicator
  */
-function updateStudioRecordingUI(els, success) {
+function hideRecordingStatus(els) {
+    if (els.recordingStatus) {
+        els.recordingStatus.style.display = 'none';
+    }
+    els.recTime.textContent = '00:00';
+    
+    // Restore empty state if no recordings exist
+    const recordings = getRecordings();
+    if (recordings.length === 0) {
+        const emptyState = els.recordingsList?.querySelector('.studio-recordings-empty');
+        if (emptyState) {
+            emptyState.style.display = 'flex';
+        }
+    }
+}
+
+/**
+ * Handle recording completion - measure and add to library
+ */
+async function handleRecordingComplete(els, recordingUrl) {
     els.btnRecord.classList.remove('recording');
     els.btnRecord.disabled = false;
     els.btnStop.disabled = true;
-    els.recDot.classList.remove('active');
+    hideRecordingStatus(els);
     els.statusDisplay.textContent = 'Monitoring';
     els.statusDisplay.className = 'transport-status';
     
-    if (success && hasRecording()) {
-        els.recPlay.disabled = false;
-        els.recDelete.disabled = false;
-        els.btnPlay.disabled = false;
-        
-        // Draw waveform preview
-        drawWaveformPreview(els.waveformCanvas);
-        
-        // Show mastering panel and reset it for new recording
-        showMasteringPanel(els);
-    }
-}
-
-/**
- * Toggle playback (play/stop)
- */
-function toggleStudioPlayback(els) {
-    if (studioPlaybackAudio && !studioPlaybackAudio.paused) {
-        // Stop playback
-        studioPlaybackAudio.pause();
-        studioPlaybackAudio.currentTime = 0;
-        updateStudioPlaybackUI(els, false);
-    } else {
-        // Start playback
-        playStudioRecording(els);
-    }
-}
-
-/**
- * Play the studio recording
- */
-function playStudioRecording(els) {
-    const url = getRecordingUrl();
-    if (!url) return;
+    if (!recordingUrl) return;
     
-    if (!studioPlaybackAudio) {
-        studioPlaybackAudio = new Audio();
-        studioPlaybackAudio.addEventListener('ended', () => {
-            updateStudioPlaybackUI(els, false);
+    // Get duration from timer
+    const duration = parseFloat(els.timeDisplay.textContent.split(':').reduce((acc, t) => acc * 60 + parseFloat(t), 0)) || 0;
+    
+    // Measure LUFS and peak
+    try {
+        const inputBuffer = await decodeRecordingBlob(recordingUrl);
+        const { lufs } = await measureBufferLufs(inputBuffer);
+        const peak = measureBufferPeak(inputBuffer);
+        
+        // Get waveform data
+        const waveformData = getWaveformData().slice(); // Copy
+        
+        // Add to library
+        const recording = addRecordingToLibrary({
+            rawUrl: recordingUrl,
+            rawLufs: lufs,
+            rawPeak: peak,
+            rawWaveformData: waveformData,
+            duration: duration
         });
-    }
-    
-    studioPlaybackAudio.src = url;
-    studioPlaybackAudio.play();
-    updateStudioPlaybackUI(els, true);
-}
-
-/**
- * Update UI for playback state
- */
-function updateStudioPlaybackUI(els, isPlaying) {
-    if (isPlaying) {
-        els.btnPlay.classList.add('playing');
-        els.recPlay.classList.add('playing');
-        els.recPlay.textContent = '⏹ Stop';
-        els.statusDisplay.textContent = 'Playing';
-        els.statusDisplay.className = 'transport-status playing';
-    } else {
-        els.btnPlay.classList.remove('playing');
-        els.recPlay.classList.remove('playing');
-        els.recPlay.textContent = '▶ Play';
-        els.statusDisplay.textContent = 'Monitoring';
-        els.statusDisplay.className = 'transport-status';
+        
+        if (recording) {
+            // Enable transport play button
+            els.btnPlay.disabled = false;
+            
+            // Re-render the list
+            renderRecordingsList(els);
+        }
+    } catch (err) {
+        console.error('Failed to measure recording:', err);
+        // Still add it without measurements
+        addRecordingToLibrary({
+            rawUrl: recordingUrl,
+            rawLufs: null,
+            rawPeak: null,
+            rawWaveformData: getWaveformData().slice(),
+            duration: duration
+        });
+        renderRecordingsList(els);
     }
 }
 
 // ============================================
-// Mastering Functions
+// Recordings List Rendering
 // ============================================
 
 /**
- * Show the mastering panel and reset it for a new recording
+ * Render the recordings list UI
  */
-function showMasteringPanel(els) {
-    if (!els.masteringPanel) return;
+function renderRecordingsList(els) {
+    const recordings = getRecordings();
+    const list = els.recordingsList;
+    if (!list) return;
     
-    // Show panel
-    els.masteringPanel.style.display = 'block';
-    
-    // Reset to initial state
-    els.masterInputLufs.textContent = '—';
-    els.masterOutputLufs.textContent = '—';
-    els.masterStatus.style.display = 'none';
-    els.masterStatus.className = 'mastering-status';
-    els.masterStatus.textContent = '';
-    els.btnMasterProcess.disabled = false;
-    els.btnMasterProcess.textContent = '🎚️ Process for Streaming';
-    els.btnMasterPlay.style.display = 'none';
-    
-    // Clean up any previous processed audio
-    if (masteringProcessedUrl) {
-        URL.revokeObjectURL(masteringProcessedUrl);
-        masteringProcessedUrl = null;
+    // Update count
+    if (els.recordingsCount) {
+        const max = getMaxRecordings();
+        els.recordingsCount.textContent = recordings.length > 0 
+            ? `${recordings.length}/${max}` 
+            : '';
     }
-    if (masteringPlaybackAudio) {
-        masteringPlaybackAudio.pause();
-        masteringPlaybackAudio = null;
-    }
-}
-
-/**
- * Reset mastering panel to hidden state
- */
-function resetMasteringPanel(els) {
-    if (!els.masteringPanel) return;
     
-    els.masteringPanel.style.display = 'none';
-    els.masterInputLufs.textContent = '—';
-    els.masterOutputLufs.textContent = '—';
-    els.masterStatus.style.display = 'none';
-    els.btnMasterPlay.style.display = 'none';
-    
-    // Clean up
-    if (masteringProcessedUrl) {
-        URL.revokeObjectURL(masteringProcessedUrl);
-        masteringProcessedUrl = null;
-    }
-    if (masteringPlaybackAudio) {
-        masteringPlaybackAudio.pause();
-        masteringPlaybackAudio = null;
-    }
-}
-
-/**
- * Process the recording for streaming
- */
-async function processMasteringRecording(els) {
-    const recordingUrl = getRecordingUrl();
-    if (!recordingUrl) {
-        setMasteringStatus(els, 'No recording available', 'error');
+    // Empty state
+    if (recordings.length === 0) {
+        list.innerHTML = '<div class="studio-recordings-empty">Press ⏺ to record</div>';
         return;
     }
     
-    // Update UI to processing state
-    els.btnMasterProcess.disabled = true;
-    els.btnMasterProcess.textContent = 'Processing...';
-    setMasteringStatus(els, 'Analyzing loudness...', 'processing');
+    // Build HTML for all recordings
+    let html = '';
+    recordings.forEach((rec, idx) => {
+        html += renderRecordingGroup(rec, idx);
+    });
+    
+    list.innerHTML = html;
+    
+    // Draw waveforms after DOM is updated
+    recordings.forEach(rec => {
+        drawRecordingWaveform(`waveform-raw-${rec.id}`, rec.rawWaveformData);
+        if (rec.processedWaveformData) {
+            drawRecordingWaveform(`waveform-processed-${rec.id}`, rec.processedWaveformData);
+        }
+    });
+    
+    // Attach event listeners
+    attachRecordingListeners(els);
+}
+
+/**
+ * Render a single recording group (raw + optional processed)
+ */
+function renderRecordingGroup(rec, idx) {
+    const rawLufsDisplay = rec.rawLufs != null ? rec.rawLufs.toFixed(1) : '—';
+    const rawPeakDisplay = rec.rawPeak != null ? rec.rawPeak.toFixed(1) : '—';
+    const durationDisplay = formatTime(rec.duration || 0);
+    
+    let html = `<div class="recording-group" data-recording-id="${rec.id}">`;
+    
+    // Raw row
+    html += `
+        <div class="recording-row raw">
+            <span class="recording-type raw">Raw</span>
+            <div class="recording-waveform">
+                <canvas id="waveform-raw-${rec.id}" width="300" height="36"></canvas>
+            </div>
+            <span class="recording-duration">${durationDisplay}</span>
+            <div class="recording-metrics">
+                <div class="recording-metric">
+                    <span class="recording-metric-label">LUFS</span>
+                    <span class="recording-metric-value ${getLufsClass(rec.rawLufs)}">${rawLufsDisplay}</span>
+                </div>
+                <div class="recording-metric">
+                    <span class="recording-metric-label">Peak</span>
+                    <span class="recording-metric-value ${getPeakClass(rec.rawPeak)}">${rawPeakDisplay}</span>
+                </div>
+            </div>
+            <div class="recording-actions">
+                <button class="recording-btn" data-action="play" data-id="${rec.id}" data-type="raw">▶</button>
+                ${!rec.processedUrl && !rec.isProcessing ? `<button class="recording-btn process" data-action="process" data-id="${rec.id}">Process</button>` : ''}
+                ${rec.isProcessing ? `<button class="recording-btn processing" disabled>Processing...</button>` : ''}
+                <button class="recording-btn" data-action="delete" data-id="${rec.id}">🗑</button>
+            </div>
+        </div>
+    `;
+    
+    // Processed row (if exists)
+    if (rec.processedUrl) {
+        const procLufsDisplay = rec.processedLufs != null ? rec.processedLufs.toFixed(1) : '—';
+        const procPeakDisplay = rec.processedPeak != null ? rec.processedPeak.toFixed(1) : '—';
+        
+        html += `
+            <div class="recording-row processed">
+                <span class="recording-type processed">↳ Processed</span>
+                <div class="recording-waveform">
+                    <canvas id="waveform-processed-${rec.id}" width="300" height="36"></canvas>
+                </div>
+                <span class="recording-duration">${durationDisplay}</span>
+                <div class="recording-metrics">
+                    <div class="recording-metric">
+                        <span class="recording-metric-label">LUFS</span>
+                        <span class="recording-metric-value ${getLufsClass(rec.processedLufs, true)}">${procLufsDisplay}</span>
+                    </div>
+                    <div class="recording-metric">
+                        <span class="recording-metric-label">Peak</span>
+                        <span class="recording-metric-value ${getPeakClass(rec.processedPeak, true)}">${procPeakDisplay}</span>
+                    </div>
+                </div>
+                <div class="recording-actions">
+                    <button class="recording-btn" data-action="play" data-id="${rec.id}" data-type="processed">▶</button>
+                    <button class="recording-btn" data-action="delete-processed" data-id="${rec.id}">🗑</button>
+                </div>
+            </div>
+        `;
+    }
+    
+    html += '</div>';
+    return html;
+}
+
+/**
+ * Get CSS class for LUFS value
+ */
+function getLufsClass(lufs, isProcessed = false) {
+    if (lufs == null) return '';
+    if (isProcessed) {
+        // For processed, we want it close to -14
+        return Math.abs(lufs - (-14)) <= 1.5 ? 'good' : 'warn';
+    }
+    // For raw, show guidance
+    if (lufs > -10) return 'bad';
+    if (lufs < -24) return 'warn';
+    return '';
+}
+
+/**
+ * Get CSS class for peak value
+ */
+function getPeakClass(peak, isProcessed = false) {
+    if (peak == null) return '';
+    if (isProcessed) {
+        // For processed, we want it close to -1
+        return peak <= -0.5 && peak >= -2 ? 'good' : '';
+    }
+    // For raw
+    if (peak > -3) return 'bad';
+    if (peak > -6) return 'warn';
+    return '';
+}
+
+/**
+ * Draw waveform on a canvas
+ */
+function drawRecordingWaveform(canvasId, waveformData) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas || !waveformData || waveformData.length === 0) return;
+    
+    const ctx = canvas.getContext('2d');
+    const width = canvas.width;
+    const height = canvas.height;
+    
+    // Clear
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--bg-muted').trim() || '#1a1a2e';
+    ctx.fillRect(0, 0, width, height);
+    
+    // Draw waveform
+    ctx.strokeStyle = '#1a73e8';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    
+    for (let i = 0; i < width; i++) {
+        const idx = Math.min(Math.floor(i * waveformData.length / width), waveformData.length - 1);
+        const value = waveformData[idx] || 0;
+        const y = height / 2 - (value * height * 2);
+        
+        if (i === 0) {
+            ctx.moveTo(i, y);
+        } else {
+            ctx.lineTo(i, y);
+        }
+    }
+    
+    // Mirror for symmetry
+    for (let i = width - 1; i >= 0; i--) {
+        const idx = Math.min(Math.floor(i * waveformData.length / width), waveformData.length - 1);
+        const value = waveformData[idx] || 0;
+        const y = height / 2 + (value * height * 2);
+        ctx.lineTo(i, y);
+    }
+    
+    ctx.closePath();
+    ctx.fillStyle = 'rgba(26, 115, 232, 0.3)';
+    ctx.fill();
+    ctx.stroke();
+}
+
+/**
+ * Attach event listeners to recording list buttons
+ */
+function attachRecordingListeners(els) {
+    const list = els.recordingsList;
+    if (!list) return;
+    
+    // Use event delegation
+    list.onclick = async (e) => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        
+        const action = btn.dataset.action;
+        const id = parseInt(btn.dataset.id, 10);
+        const type = btn.dataset.type;
+        
+        switch (action) {
+            case 'play':
+                const rec = getRecording(id);
+                if (rec) {
+                    const url = type === 'processed' ? rec.processedUrl : rec.rawUrl;
+                    toggleRecordingPlayback(els, id, type, url);
+                }
+                break;
+                
+            case 'process':
+                await processRecording(els, id);
+                break;
+                
+            case 'delete':
+                deleteRecording(id);
+                stopActivePlayback(els);
+                renderRecordingsList(els);
+                // Update transport play button
+                els.btnPlay.disabled = !hasRecording();
+                break;
+                
+            case 'delete-processed':
+                const recording = getRecording(id);
+                if (recording && recording.processedUrl) {
+                    URL.revokeObjectURL(recording.processedUrl);
+                    recording.processedUrl = null;
+                    recording.processedLufs = null;
+                    recording.processedPeak = null;
+                    recording.processedWaveformData = null;
+                    renderRecordingsList(els);
+                }
+                break;
+        }
+    };
+}
+
+// ============================================
+// Playback Functions
+// ============================================
+
+/**
+ * Toggle playback for a specific recording
+ */
+function toggleRecordingPlayback(els, id, type, url) {
+    const playingKey = `${id}-${type}`;
+    
+    // If this recording is already playing, stop it
+    if (activePlaybackId === playingKey && activePlaybackAudio && !activePlaybackAudio.paused) {
+        activePlaybackAudio.pause();
+        activePlaybackAudio.currentTime = 0;
+        updatePlaybackButton(id, type, false);
+        els.btnPlay.classList.remove('playing');
+        els.statusDisplay.textContent = 'Monitoring';
+        els.statusDisplay.className = 'transport-status';
+        activePlaybackId = null;
+        return;
+    }
+    
+    // Stop any other playback
+    stopActivePlayback(els);
+    
+    // Start new playback
+    if (!activePlaybackAudio) {
+        activePlaybackAudio = new Audio();
+    }
+    
+    activePlaybackAudio.src = url;
+    activePlaybackAudio.onended = () => {
+        updatePlaybackButton(id, type, false);
+        els.btnPlay.classList.remove('playing');
+        els.statusDisplay.textContent = 'Monitoring';
+        els.statusDisplay.className = 'transport-status';
+        activePlaybackId = null;
+    };
+    
+    activePlaybackAudio.play().catch(err => {
+        console.warn('Playback failed:', err);
+        // Reset UI on failure (e.g., browser autoplay policy)
+        updatePlaybackButton(id, type, false);
+        els.btnPlay.classList.remove('playing');
+        els.statusDisplay.textContent = 'Monitoring';
+        els.statusDisplay.className = 'transport-status';
+        activePlaybackId = null;
+    });
+    
+    activePlaybackId = playingKey;
+    updatePlaybackButton(id, type, true);
+    els.btnPlay.classList.add('playing');
+    els.statusDisplay.textContent = 'Playing';
+    els.statusDisplay.className = 'transport-status playing';
+}
+
+/**
+ * Stop any active playback
+ */
+function stopActivePlayback(els) {
+    if (activePlaybackAudio) {
+        activePlaybackAudio.pause();
+        activePlaybackAudio.currentTime = 0;
+    }
+    
+    // Reset all play buttons
+    document.querySelectorAll('[data-action="play"]').forEach(btn => {
+        btn.textContent = '▶';
+        btn.classList.remove('playing');
+    });
+    
+    els.btnPlay.classList.remove('playing');
+    els.statusDisplay.textContent = 'Monitoring';
+    els.statusDisplay.className = 'transport-status';
+    activePlaybackId = null;
+}
+
+/**
+ * Update a specific play button
+ */
+function updatePlaybackButton(id, type, isPlaying) {
+    const btn = document.querySelector(`[data-action="play"][data-id="${id}"][data-type="${type}"]`);
+    if (btn) {
+        btn.textContent = isPlaying ? '⏹' : '▶';
+        btn.classList.toggle('playing', isPlaying);
+    }
+}
+
+// ============================================
+// Processing Functions
+// ============================================
+
+/**
+ * Process a specific recording
+ */
+async function processRecording(els, id) {
+    const rec = getRecording(id);
+    if (!rec || !rec.rawUrl) return;
+    
+    // Mark as processing
+    setRecordingProcessing(id, true);
+    renderRecordingsList(els);
     
     try {
-        // Decode the recording
-        const inputBuffer = await decodeRecordingBlob(recordingUrl);
-        
-        // Update status
-        setMasteringStatus(els, 'Applying normalization...', 'processing');
-        
-        // Process for streaming
+        // Decode and process
+        const inputBuffer = await decodeRecordingBlob(rec.rawUrl);
         const result = await processForStreaming(inputBuffer);
         
-        // Update meters
-        const inputDisplay = result.inputLufs <= -60 ? '-∞' : result.inputLufs.toFixed(1);
-        const outputDisplay = result.outputLufs <= -60 ? '-∞' : result.outputLufs.toFixed(1);
-        els.masterInputLufs.textContent = inputDisplay;
-        els.masterOutputLufs.textContent = outputDisplay;
+        // Create URL and get waveform
+        const processedUrl = audioBufferToWavUrl(result.buffer);
         
-        // Create playable URL from processed buffer
-        masteringProcessedUrl = audioBufferToWavUrl(result.buffer);
+        // Generate waveform data from processed buffer
+        const processedWaveformData = extractWaveformFromBuffer(result.buffer);
         
-        // Check if output meets target (within ±1 LU of -14)
-        const targetLufs = -14;
-        const tolerance = 1.5;
-        const meetsSpec = Math.abs(result.outputLufs - targetLufs) <= tolerance;
+        // Update recording
+        setRecordingProcessed(id, {
+            processedUrl,
+            processedLufs: result.outputLufs,
+            processedPeak: result.outputPeak,
+            processedWaveformData
+        });
         
-        if (meetsSpec) {
-            setMasteringStatus(els, '✓ Ready for streaming (-14 LUFS)', 'ready');
-        } else {
-            // This shouldn't happen often, but handle it
-            setMasteringStatus(els, `Processed to ${result.outputLufs.toFixed(1)} LUFS`, 'warning');
-        }
-        
-        // Show play button
-        els.btnMasterPlay.style.display = 'inline-block';
-        els.btnMasterProcess.textContent = '🎚️ Reprocess';
-        els.btnMasterProcess.disabled = false;
+        // Re-render
+        renderRecordingsList(els);
         
     } catch (err) {
-        console.error('Mastering error:', err);
-        setMasteringStatus(els, err.message || 'Processing failed', 'error');
-        els.btnMasterProcess.textContent = '🎚️ Retry';
-        els.btnMasterProcess.disabled = false;
+        console.error('Processing failed:', err);
+        setRecordingProcessing(id, false);
+        renderRecordingsList(els);
     }
 }
 
 /**
- * Set mastering status message
+ * Extract waveform data from an AudioBuffer for visualization
  */
-function setMasteringStatus(els, message, type) {
-    els.masterStatus.textContent = message;
-    els.masterStatus.className = `mastering-status ${type}`;
-    els.masterStatus.style.display = 'block';
-}
-
-/**
- * Toggle playback of processed audio
- */
-function toggleMasteringPlayback(els) {
-    if (!masteringProcessedUrl) return;
+function extractWaveformFromBuffer(buffer) {
+    const data = buffer.getChannelData(0);
+    const samples = 300; // Enough points for the small canvas
+    const blockSize = Math.floor(data.length / samples);
+    const waveform = [];
     
-    if (masteringPlaybackAudio && !masteringPlaybackAudio.paused) {
-        // Stop playback
-        masteringPlaybackAudio.pause();
-        masteringPlaybackAudio.currentTime = 0;
-        els.btnMasterPlay.textContent = '▶ Play Processed';
-        els.btnMasterPlay.classList.remove('playing');
-    } else {
-        // Start playback
-        if (!masteringPlaybackAudio) {
-            masteringPlaybackAudio = new Audio();
-            masteringPlaybackAudio.addEventListener('ended', () => {
-                els.btnMasterPlay.textContent = '▶ Play Processed';
-                els.btnMasterPlay.classList.remove('playing');
-            });
+    for (let i = 0; i < samples; i++) {
+        let sum = 0;
+        const start = i * blockSize;
+        for (let j = 0; j < blockSize; j++) {
+            sum += Math.abs(data[start + j]);
         }
-        
-        masteringPlaybackAudio.src = masteringProcessedUrl;
-        masteringPlaybackAudio.play().catch(err => {
-            console.warn('Mastering playback failed:', err);
-            els.btnMasterPlay.textContent = '▶ Play Processed';
-            els.btnMasterPlay.classList.remove('playing');
-        });
-        els.btnMasterPlay.textContent = '⏹ Stop';
-        els.btnMasterPlay.classList.add('playing');
+        waveform.push(sum / blockSize);
     }
+    
+    return waveform;
+}
+
+/**
+ * Measure peak level of an AudioBuffer in dBFS
+ * Returns a finite value (clamped to -100 dB for silent audio)
+ */
+function measureBufferPeak(buffer) {
+    let peak = 0;
+    for (let ch = 0; ch < buffer.numberOfChannels; ch++) {
+        const data = buffer.getChannelData(ch);
+        for (let i = 0; i < data.length; i++) {
+            const abs = Math.abs(data[i]);
+            if (abs > peak) peak = abs;
+        }
+    }
+    // Convert to dB, clamp to -100 for display (avoids -Infinity)
+    if (peak === 0) return -100;
+    const db = 20 * Math.log10(peak);
+    return Math.max(db, -100);
 }
 
 /**
@@ -1596,21 +1842,12 @@ function stopStudioScreen() {
         stopStudioRecording();
     }
     
-    // Stop playback
-    if (studioPlaybackAudio) {
-        studioPlaybackAudio.pause();
-        studioPlaybackAudio = null;
+    // Stop any playback
+    if (activePlaybackAudio) {
+        activePlaybackAudio.pause();
+        activePlaybackAudio = null;
     }
-    
-    // Stop mastering playback and cleanup
-    if (masteringPlaybackAudio) {
-        masteringPlaybackAudio.pause();
-        masteringPlaybackAudio = null;
-    }
-    if (masteringProcessedUrl) {
-        URL.revokeObjectURL(masteringProcessedUrl);
-        masteringProcessedUrl = null;
-    }
+    activePlaybackId = null;
     
     // Clear timers
     if (studioRecordingTimer) {
@@ -1618,7 +1855,7 @@ function stopStudioScreen() {
         studioRecordingTimer = null;
     }
     
-    // Cleanup studio
+    // Cleanup studio (also clears recordings library)
     cleanupStudio();
 }
 

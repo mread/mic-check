@@ -33,6 +33,7 @@
             --border: #dadce0;
             --border-light: #eee;
             --accent: #1a73e8;
+            --accent-hover: #1557b0;
             --accent-light: #e8f0fe;
             --problem: #d93025;
             --problem-light: #fce8e6;
@@ -65,39 +66,122 @@
             padding: 2rem 1.5rem;
         }
         
-        /* Header */
+        /* Header - compact by default (inner pages) */
         header {
-            text-align: center;
-            margin-bottom: 3rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid var(--border-light);
+        }
+        
+        .header-brand {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            text-decoration: none;
+            color: inherit;
+        }
+        
+        .header-brand:hover {
+            opacity: 0.8;
+        }
+        
+        .header-brand h1,
+        .header-brand .tagline {
+            color: inherit;
+        }
+        
+        .header-brand h1 {
+            color: var(--text);
         }
         
         .logo {
-            font-size: 4rem;
-            margin-bottom: 0.5rem;
+            font-size: 1.5rem;
+            line-height: 1;
+        }
+        
+        .header-text {
+            display: flex;
+            flex-direction: column;
         }
         
         h1 {
-            font-size: 2.5rem;
+            font-size: 1.1rem;
             font-weight: 700;
-            margin-bottom: 0.5rem;
+            line-height: 1.2;
         }
         
         .tagline {
-            color: var(--text-secondary);
-            font-size: 1.1rem;
+            color: var(--text-muted);
+            font-size: 0.7rem;
         }
         
         .privacy-badge {
-            display: inline-flex;
+            display: flex;
             align-items: center;
-            gap: 0.5rem;
-            background: var(--bg-muted);
+            gap: 0.35rem;
+            color: var(--text-muted);
+            font-size: 0.7rem;
+        }
+        
+        .privacy-badge .privacy-icon {
+            font-size: 0.85rem;
+        }
+        
+        /* Home page: larger, centered header */
+        body[data-screen="home"] header {
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            gap: 0.25rem;
+            margin-bottom: 2rem;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+        
+        body[data-screen="home"] .header-brand {
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+        
+        body[data-screen="home"] .logo {
+            font-size: 2.5rem;
+        }
+        
+        body[data-screen="home"] h1 {
+            font-size: 1.75rem;
+        }
+        
+        body[data-screen="home"] .tagline {
+            font-size: 0.95rem;
             color: var(--text-secondary);
-            padding: 0.5rem 1rem;
-            border-radius: 2rem;
-            font-size: 0.8rem;
-            font-weight: 500;
-            margin-top: 1rem;
+        }
+        
+        body[data-screen="home"] .privacy-badge {
+            margin-top: 0.5rem;
+            background: var(--bg-muted);
+            padding: 0.4rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.75rem;
+        }
+        
+        @media (max-width: 480px) {
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+            .privacy-badge {
+                align-self: flex-start;
+            }
+            body[data-screen="home"] header {
+                align-items: center;
+            }
+            body[data-screen="home"] .privacy-badge {
+                align-self: center;
+            }
         }
         
         /* Cards */
@@ -1553,37 +1637,231 @@
             color: var(--problem);
         }
         
-        /* Recording Strip */
-        .studio-recording {
+        /* Recordings Library */
+        .studio-recordings {
             background: var(--bg-card);
             border: 1px solid var(--border);
             border-radius: 12px;
             padding: 1rem;
         }
         
-        .studio-recording-strip {
+        .studio-recordings-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+        
+        .studio-recordings-count {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+        
+        .studio-recordings-list {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        /* Recording group (raw + optional processed) */
+        .recording-group {
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .recording-group:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+            margin-bottom: 0;
+        }
+        
+        /* Individual recording row */
+        .recording-row {
             display: flex;
             align-items: center;
             gap: 0.75rem;
+            padding: 0.5rem;
+            border-radius: 6px;
         }
         
-        .studio-recording-info {
+        /* Alternating colors for recording groups */
+        .recording-group:nth-child(odd) .recording-row {
+            background: rgba(255, 255, 255, 0.02);
+        }
+        
+        .recording-group:nth-child(even) .recording-row {
+            background: rgba(0, 0, 0, 0.1);
+        }
+        
+        /* Processed row styling */
+        .recording-row.processed {
+            opacity: 0.9;
+        }
+        
+        .recording-type {
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            width: 85px;
+            flex-shrink: 0;
+            color: var(--text-secondary);
+        }
+        
+        .recording-type.raw {
+            color: var(--text-secondary);
+        }
+        
+        .recording-type.processed {
+            color: var(--success);
+        }
+        
+        .recording-waveform {
+            flex: 1;
+            height: 36px;
+            background: var(--bg-muted);
+            border-radius: 4px;
+            position: relative;
+            overflow: hidden;
+            min-width: 100px;
+        }
+        
+        .recording-waveform canvas {
+            width: 100%;
+            height: 100%;
+        }
+        
+        .recording-metrics {
+            display: flex;
+            gap: 1rem;
+            font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.8rem;
+            width: 120px;
+            flex-shrink: 0;
+        }
+        
+        .recording-metric {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 50px;
+        }
+        
+        .recording-metric-label {
+            font-size: 0.6rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        
+        .recording-metric-value {
+            font-weight: 600;
+        }
+        
+        .recording-metric-value.good {
+            color: var(--success);
+        }
+        
+        .recording-metric-value.warn {
+            color: var(--warning);
+        }
+        
+        .recording-metric-value.bad {
+            color: var(--problem);
+        }
+        
+        .recording-duration {
+            font-family: ui-monospace, 'SF Mono', SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            width: 45px;
+            flex-shrink: 0;
+            text-align: center;
+        }
+        
+        .recording-actions {
+            display: flex;
+            gap: 0.35rem;
+            width: 130px;
+            flex-shrink: 0;
+            justify-content: flex-end;
+        }
+        
+        .recording-btn {
+            padding: 0.4rem 0.6rem;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            background: var(--bg-elevated);
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.15s ease;
+        }
+        
+        .recording-btn:hover:not(:disabled) {
+            border-color: var(--accent);
+            background: var(--accent-light);
+        }
+        
+        .recording-btn.playing {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+        
+        .recording-btn.process {
+            background: var(--accent);
+            color: white;
+            border-color: var(--accent);
+        }
+        
+        .recording-btn.process:hover {
+            background: var(--accent-hover);
+        }
+        
+        .recording-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+        
+        .recording-btn.processing {
+            animation: pulse 1s ease-in-out infinite;
+        }
+        
+        /* Uses existing @keyframes pulse defined earlier */
+        
+        /* Empty state */
+        .studio-recordings-empty {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+        }
+        
+        /* Recording status indicator (while recording) */
+        .studio-recording-status {
             display: flex;
             align-items: center;
             gap: 0.5rem;
-            min-width: 80px;
+            padding: 0.5rem 0.75rem;
+            background: rgba(255, 68, 68, 0.1);
+            border: 1px solid var(--problem);
+            border-radius: 6px;
+            margin-bottom: 0.75rem;
         }
         
         .studio-recording-dot {
             width: 10px;
             height: 10px;
             border-radius: 50%;
-            background: var(--text-muted);
+            background: var(--problem);
+            animation: recordingDotPulse 1s ease-in-out infinite;
         }
         
-        .studio-recording-dot.active {
-            background: var(--problem);
-            animation: recordPulse 1s ease-in-out infinite;
+        @keyframes recordingDotPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
         }
         
         .studio-recording-time {
@@ -1592,67 +1870,21 @@
             font-weight: 600;
         }
         
-        .studio-recording-waveform {
-            flex: 1;
-            height: 48px;
-            background: var(--bg-muted);
-            border-radius: 4px;
-            position: relative;
-            overflow: hidden;
-        }
-        
-        .studio-recording-waveform canvas {
-            width: 100%;
-            height: 100%;
-        }
-        
-        .studio-recording-empty {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            height: 100%;
-            color: var(--text-muted);
-            font-size: 0.8rem;
-        }
-        
-        .studio-recording-actions {
-            display: flex;
-            gap: 0.5rem;
-        }
-        
-        .studio-recording-btn {
-            padding: 0.5rem 0.75rem;
-            border: 1px solid var(--border);
-            border-radius: 6px;
-            background: var(--bg-elevated);
-            font-size: 0.85rem;
-            cursor: pointer;
-            transition: all 0.15s ease;
-        }
-        
-        .studio-recording-btn:hover {
-            border-color: var(--accent);
-            background: var(--accent-light);
-        }
-        
-        .studio-recording-btn.playing {
-            background: var(--accent);
-            color: white;
-            border-color: var(--accent);
-        }
-        
-        .studio-recording-btn:disabled {
-            opacity: 0.4;
-            cursor: not-allowed;
-        }
-        
-        /* Mastering Panel */
-        .studio-mastering {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: 12px;
-            padding: 1rem;
-            margin-top: 1rem;
+        /* Mobile responsive */
+        @media (max-width: 600px) {
+            .recording-row {
+                flex-wrap: wrap;
+            }
+            
+            .recording-waveform {
+                order: 3;
+                flex: 1 1 100%;
+                margin-top: 0.5rem;
+            }
+            
+            .recording-metrics {
+                gap: 0.5rem;
+            }
         }
         
         .mastering-content {
@@ -1836,13 +2068,14 @@
                 flex-direction: column;
             }
             
-            .studio-recording-strip {
+            .recording-row {
                 flex-wrap: wrap;
             }
             
-            .studio-recording-waveform {
+            .recording-waveform {
                 order: 3;
                 flex: 1 1 100%;
+                margin-top: 0.5rem;
             }
         }
         
@@ -1878,11 +2111,16 @@
 <body>
     <div class="container">
         <header>
-            <div class="logo">🎤</div>
-            <h1>Mic Check</h1>
-            <p class="tagline">Can you hear me?</p>
+            <a href="#" class="header-brand">
+                <div class="logo">🎤</div>
+                <div class="header-text">
+                    <h1>Mic Check</h1>
+                    <p class="tagline">Can you hear me?</p>
+                </div>
+            </a>
             <div class="privacy-badge">
-                🔒 100% Private — No data leaves your browser
+                <span class="privacy-icon">🔒</span>
+                <span>100% Private — No data leaves your browser</span>
             </div>
         </header>
 
@@ -2471,70 +2709,38 @@
                     </div>
                 </div>
                 
-                <!-- Recording Strip (shown after permission) -->
-                <div id="studio-recording-container" class="studio-recording" style="display: none;">
-                    <div class="studio-section-label">Recording</div>
-                    <div class="studio-recording-strip">
-                        <div class="studio-recording-info">
-                            <span id="studio-rec-dot" class="studio-recording-dot"></span>
-                            <span id="studio-rec-time" class="studio-recording-time">00:00</span>
+                <!-- Recordings Library (shown after permission) -->
+                <div id="studio-recordings-container" class="studio-recordings" style="display: none;">
+                    <div class="studio-recordings-header">
+                        <div class="studio-section-label">
+                            Recordings
+                            <span class="studio-help-icon" tabindex="0">ⓘ
+                                <div class="studio-help-tooltip">
+                                    <strong>Your recordings</strong>
+                                    Each recording shows its loudness (LUFS) and peak level (dBTP).
+                                    <ul>
+                                        <li><strong>Raw:</strong> Your original recording</li>
+                                        <li><strong>Process:</strong> Normalize for streaming (-14 LUFS)</li>
+                                        <li><strong>Processed:</strong> Ready for Spotify, YouTube, etc.</li>
+                                    </ul>
+                                </div>
+                            </span>
                         </div>
-                        
-                        <div class="studio-recording-waveform">
-                            <canvas id="studio-waveform-canvas" width="600" height="40"></canvas>
-                            <div id="studio-waveform-empty" class="studio-recording-empty">
-                                Press ⏺ to record
-                            </div>
-                        </div>
-                        
-                        <div class="studio-recording-actions">
-                            <button id="studio-rec-play" class="studio-recording-btn" disabled>▶ Play</button>
-                            <button id="studio-rec-delete" class="studio-recording-btn" disabled>🗑</button>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Mastering Panel (shown when recording exists) -->
-                <div id="studio-mastering" class="studio-mastering" style="display: none;">
-                    <div class="studio-section-label">
-                        Mastering
-                        <span class="studio-help-icon" tabindex="0">ⓘ
-                            <div class="studio-help-tooltip">
-                                <strong>What it does</strong>
-                                Normalizes your recording to streaming standards (-14 LUFS with -1 dB peak ceiling). This is the loudness level used by Spotify, YouTube, and most streaming platforms.
-                                <ul>
-                                    <li><strong>Before:</strong> Raw recording loudness</li>
-                                    <li><strong>After:</strong> Processed for streaming</li>
-                                </ul>
-                            </div>
-                        </span>
+                        <span id="studio-recordings-count" class="studio-recordings-count"></span>
                     </div>
                     
-                    <div class="mastering-content">
-                        <div class="mastering-meters">
-                            <div class="mastering-meter">
-                                <div class="mastering-meter-label">Before</div>
-                                <div id="mastering-input-lufs" class="mastering-meter-value">—</div>
-                                <div class="mastering-meter-unit">LUFS</div>
-                            </div>
-                            <div class="mastering-arrow">→</div>
-                            <div class="mastering-meter">
-                                <div class="mastering-meter-label">After</div>
-                                <div id="mastering-output-lufs" class="mastering-meter-value">—</div>
-                                <div class="mastering-meter-unit">LUFS</div>
-                            </div>
+                    <!-- Recordings list (dynamically populated) -->
+                    <div id="studio-recordings-list" class="studio-recordings-list">
+                        <div class="studio-recordings-empty">
+                            Press ⏺ to record
                         </div>
-                        
-                        <div id="mastering-status" class="mastering-status" style="display: none;"></div>
-                        
-                        <div class="mastering-controls">
-                            <button id="btn-master-process" class="mastering-btn mastering-btn-primary">
-                                🎚️ Process for Streaming
-                            </button>
-                            <button id="btn-master-play" class="mastering-btn mastering-btn-secondary" style="display: none;">
-                                ▶ Play Processed
-                            </button>
-                        </div>
+                    </div>
+                    
+                    <!-- Recording status (shown while recording) - positioned after list for layout stability -->
+                    <div id="studio-recording-status" class="studio-recording-status" style="display: none;">
+                        <span class="studio-recording-dot"></span>
+                        <span id="studio-rec-time" class="studio-recording-time">00:00</span>
+                        <span style="color: var(--problem); font-size: 0.85rem;">Recording...</span>
                     </div>
                 </div>
             </div>

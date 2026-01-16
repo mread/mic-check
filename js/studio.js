@@ -66,12 +66,10 @@ const studioState = {
     lastLufsUpdate: 0,
     currentLufs: -Infinity,
     
-    // Recording
+    // Recording state (current session)
     isRecording: false,
     recordingStartTime: 0,
     recorder: null,
-    recordingBlob: null,
-    recordingUrl: null,
     waveformData: [],
     
     // Playback
@@ -81,6 +79,169 @@ const studioState = {
     // Processing mode (AGC, noise suppression, echo cancellation)
     // Default OFF for professional recording - preserves raw audio quality
     processingEnabled: false
+};
+
+/**
+ * Recording library - stores all recordings for the session
+ * 
+ * Each recording can have a raw version and an optional processed version.
+ * Memory budget: ~10MB per 30s recording, max ~100MB total.
+ */
+const recordingsLibrary = {
+    recordings: [],
+    nextId: 1,
+    
+    // Memory limit: ~100MB (about 10 recordings of 30s each)
+    MAX_RECORDINGS: 10,
+    
+    /**
+     * Add a new recording
+     * @param {Object} data - Recording data
+     * @returns {Object} The new recording object
+     */
+    add(data) {
+        if (this.recordings.length >= this.MAX_RECORDINGS) {
+            console.warn(`Recording limit (${this.MAX_RECORDINGS}) reached`);
+            return null;
+        }
+        
+        const recording = {
+            id: this.nextId++,
+            timestamp: new Date(),
+            duration: data.duration,
+            
+            // Raw recording
+            rawUrl: data.rawUrl,
+            rawLufs: data.rawLufs,
+            rawPeak: data.rawPeak,
+            rawWaveformData: data.rawWaveformData,
+            
+            // Processed version (null until processed)
+            processedUrl: null,
+            processedLufs: null,
+            processedPeak: null,
+            processedWaveformData: null,
+            
+            // Processing state
+            isProcessing: false
+        };
+        
+        this.recordings.push(recording);
+        return recording;
+    },
+    
+    /**
+     * Get a recording by ID
+     */
+    get(id) {
+        return this.recordings.find(r => r.id === id);
+    },
+    
+    /**
+     * Update a recording's processed version
+     */
+    setProcessed(id, data) {
+        const recording = this.get(id);
+        if (recording) {
+            // Revoke old processed URL to prevent memory leak
+            if (recording.processedUrl && recording.processedUrl !== data.processedUrl) {
+                try {
+                    URL.revokeObjectURL(recording.processedUrl);
+                } catch (e) {
+                    // Ignore errors from invalid URLs
+                }
+            }
+            recording.processedUrl = data.processedUrl;
+            recording.processedLufs = data.processedLufs;
+            recording.processedPeak = data.processedPeak;
+            recording.processedWaveformData = data.processedWaveformData;
+            recording.isProcessing = false;
+        }
+        return recording;
+    },
+    
+    /**
+     * Mark recording as processing
+     */
+    setProcessing(id, isProcessing) {
+        const recording = this.get(id);
+        if (recording) {
+            recording.isProcessing = isProcessing;
+        }
+        return recording;
+    },
+    
+    /**
+     * Delete a recording and clean up URLs
+     */
+    delete(id) {
+        const idx = this.recordings.findIndex(r => r.id === id);
+        if (idx === -1) return false;
+        
+        const recording = this.recordings[idx];
+        
+        // Revoke blob URLs
+        if (recording.rawUrl) {
+            URL.revokeObjectURL(recording.rawUrl);
+        }
+        if (recording.processedUrl) {
+            URL.revokeObjectURL(recording.processedUrl);
+        }
+        
+        this.recordings.splice(idx, 1);
+        return true;
+    },
+    
+    /**
+     * Delete just the processed version
+     */
+    deleteProcessed(id) {
+        const recording = this.get(id);
+        if (recording && recording.processedUrl) {
+            URL.revokeObjectURL(recording.processedUrl);
+            recording.processedUrl = null;
+            recording.processedLufs = null;
+            recording.processedPeak = null;
+            recording.processedWaveformData = null;
+        }
+        return recording;
+    },
+    
+    /**
+     * Get all recordings
+     */
+    getAll() {
+        return this.recordings;
+    },
+    
+    /**
+     * Clear all recordings and clean up
+     */
+    clear() {
+        for (const recording of this.recordings) {
+            if (recording.rawUrl) {
+                URL.revokeObjectURL(recording.rawUrl);
+            }
+            if (recording.processedUrl) {
+                URL.revokeObjectURL(recording.processedUrl);
+            }
+        }
+        this.recordings = [];
+    },
+    
+    /**
+     * Check if at capacity
+     */
+    isFull() {
+        return this.recordings.length >= this.MAX_RECORDINGS;
+    },
+    
+    /**
+     * Get count
+     */
+    count() {
+        return this.recordings.length;
+    }
 };
 
 // Peak hold duration in ms
@@ -775,36 +936,30 @@ function drawOscilloscope(ctx, canvas, timeDomainData) {
 }
 
 /**
- * Start recording - returns a promise that resolves when recording completes
- * @returns {Promise<boolean>} Resolves to true if recording completed successfully
+ * Start recording - returns a promise that resolves with the recording URL
+ * @returns {Promise<string|null>} Resolves to blob URL if successful, null if failed/cancelled
  */
 export function startRecording() {
     if (!studioState.stream || studioState.isRecording) {
-        return Promise.resolve(false);
+        return Promise.resolve(null);
     }
     
     const { supported } = getMediaRecorderSupport();
     if (!supported) {
         console.error('MediaRecorder not supported');
-        return Promise.resolve(false);
+        return Promise.resolve(null);
     }
     
     // Mark as recording immediately (prevents double-clicks)
     studioState.isRecording = true;
     studioState.waveformData = [];
     
-    // Clean up old recording
-    if (studioState.recordingUrl) {
-        URL.revokeObjectURL(studioState.recordingUrl);
-        studioState.recordingUrl = null;
-    }
-    
     // Pre-roll delay to avoid capturing mouse click sound
     return new Promise(resolve => setTimeout(resolve, RECORDING_PRE_ROLL_MS))
         .then(() => {
             // Create recorder after pre-roll (user may have cancelled during delay)
             if (!studioState.isRecording) {
-                return false;
+                return null;
             }
             
             studioState.recorder = new PlaybackRecorder(studioState.stream);
@@ -814,17 +969,16 @@ export function startRecording() {
             return studioState.recorder.start(30000);
         })
         .then(blobUrl => {
-            if (blobUrl === false) {
-                return false; // Cancelled during pre-roll
-            }
-            studioState.recordingUrl = blobUrl;
             studioState.isRecording = false;
-            return true;
+            if (!blobUrl) {
+                return null; // Cancelled during pre-roll or recording
+            }
+            return blobUrl; // Return URL directly - caller manages it
         })
         .catch(error => {
             console.error('Recording failed:', error);
             studioState.isRecording = false;
-            return false;
+            return null;
         });
 }
 
@@ -847,38 +1001,81 @@ export function getRecordingTime() {
 }
 
 /**
- * Check if recording exists
+ * Check if any recordings exist
  */
 export function hasRecording() {
-    return studioState.recordingUrl !== null;
+    return recordingsLibrary.count() > 0;
 }
 
 /**
- * Get recording URL for playback
+ * Get all recordings
  */
-export function getRecordingUrl() {
-    return studioState.recordingUrl;
+export function getRecordings() {
+    return recordingsLibrary.getAll();
 }
 
 /**
- * Get waveform data for visualization
+ * Get a specific recording by ID
+ */
+export function getRecording(id) {
+    return recordingsLibrary.get(id);
+}
+
+/**
+ * Get waveform data for current recording session
  */
 export function getWaveformData() {
     return studioState.waveformData;
 }
 
 /**
- * Delete current recording
+ * Delete a recording by ID
  */
-export function deleteRecording() {
-    if (studioState.recordingUrl) {
-        URL.revokeObjectURL(studioState.recordingUrl);
-        studioState.recordingUrl = null;
-    }
-    studioState.waveformData = [];
-    if (studioState.recorder) {
-        studioState.recorder.cleanup();
-    }
+export function deleteRecording(id) {
+    return recordingsLibrary.delete(id);
+}
+
+/**
+ * Delete processed version of a recording
+ */
+export function deleteProcessedRecording(id) {
+    return recordingsLibrary.deleteProcessed(id);
+}
+
+/**
+ * Mark a recording as processing
+ */
+export function setRecordingProcessing(id, isProcessing) {
+    return recordingsLibrary.setProcessing(id, isProcessing);
+}
+
+/**
+ * Set processed data for a recording
+ */
+export function setRecordingProcessed(id, data) {
+    return recordingsLibrary.setProcessed(id, data);
+}
+
+/**
+ * Check if recordings library is full
+ */
+export function isRecordingsFull() {
+    return recordingsLibrary.isFull();
+}
+
+/**
+ * Get max recordings count
+ */
+export function getMaxRecordings() {
+    return recordingsLibrary.MAX_RECORDINGS;
+}
+
+/**
+ * Add a completed recording to the library
+ * Called after recording finishes with measurements
+ */
+export function addRecordingToLibrary(data) {
+    return recordingsLibrary.add(data);
 }
 
 /**
@@ -918,11 +1115,8 @@ export async function cleanupStudio() {
     }
     studioState.isRecording = false;
     
-    // Clean up recording URL
-    if (studioState.recordingUrl) {
-        URL.revokeObjectURL(studioState.recordingUrl);
-        studioState.recordingUrl = null;
-    }
+    // Clean up all recordings in library
+    recordingsLibrary.clear();
     
     // Stop stream tracks
     if (studioState.stream) {
