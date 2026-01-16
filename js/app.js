@@ -99,6 +99,13 @@ import {
     getChannelCount
 } from './studio.js';
 
+import {
+    decodeRecordingBlob,
+    measureBufferLufs,
+    processForStreaming,
+    audioBufferToWavUrl
+} from './mastering.js';
+
 import { escapeHtml } from './utils.js';
 
 import { route, navigate, initRouter } from './router.js';
@@ -993,6 +1000,10 @@ let studioPlaybackAudio = null;
 let selectedStudioDeviceId = null;
 let studioListenersAttached = false;
 
+// Mastering state
+let masteringProcessedUrl = null;
+let masteringPlaybackAudio = null;
+
 /**
  * Get all studio UI elements
  */
@@ -1040,7 +1051,15 @@ function getStudioElements() {
         waveformCanvas: document.getElementById('studio-waveform-canvas'),
         waveformEmpty: document.getElementById('studio-waveform-empty'),
         recPlay: document.getElementById('studio-rec-play'),
-        recDelete: document.getElementById('studio-rec-delete')
+        recDelete: document.getElementById('studio-rec-delete'),
+        
+        // Mastering panel
+        masteringPanel: document.getElementById('studio-mastering'),
+        masterInputLufs: document.getElementById('mastering-input-lufs'),
+        masterOutputLufs: document.getElementById('mastering-output-lufs'),
+        masterStatus: document.getElementById('mastering-status'),
+        btnMasterProcess: document.getElementById('btn-master-process'),
+        btnMasterPlay: document.getElementById('btn-master-play')
     };
 }
 
@@ -1225,24 +1244,40 @@ function setupStudioEventListeners(els) {
         els.btnRecord.disabled = true;
         els.btnStop.disabled = false;
         els.btnPlay.disabled = true;
-        els.recDot.classList.add('active');
-        els.statusDisplay.textContent = 'Recording';
-        els.statusDisplay.className = 'transport-status recording';
         els.waveformEmpty.style.display = 'none';
+        
+        // Show pre-roll state (brief delay to avoid capturing mouse click)
+        els.statusDisplay.textContent = 'Starting...';
+        els.statusDisplay.className = 'transport-status';
         
         // Reset peaks when starting new recording
         resetPeaks();
         
-        // Start timer
-        const startTime = Date.now();
-        studioRecordingTimer = setInterval(() => {
-            const elapsed = (Date.now() - startTime) / 1000;
-            els.recTime.textContent = formatTime(elapsed);
-            els.timeDisplay.textContent = formatTime(elapsed);
-        }, 100);
+        // Start recording (includes 250ms pre-roll delay)
+        const recordingPromise = startStudioRecording();
         
-        // Start recording
-        const success = await startStudioRecording();
+        // Wait a tick for pre-roll to begin, then show recording state
+        setTimeout(() => {
+            if (isStudioRecording()) {
+                els.recDot.classList.add('active');
+                els.statusDisplay.textContent = 'Recording';
+                els.statusDisplay.className = 'transport-status recording';
+            }
+        }, 260); // Slightly after 250ms pre-roll
+        
+        // Start timer after pre-roll completes
+        setTimeout(() => {
+            if (isStudioRecording()) {
+                const startTime = Date.now();
+                studioRecordingTimer = setInterval(() => {
+                    const elapsed = (Date.now() - startTime) / 1000;
+                    els.recTime.textContent = formatTime(elapsed);
+                    els.timeDisplay.textContent = formatTime(elapsed);
+                }, 100);
+            }
+        }, 250); // Match pre-roll delay
+        
+        const success = await recordingPromise;
         
         // Recording ended (either completed or stopped)
         clearInterval(studioRecordingTimer);
@@ -1291,6 +1326,19 @@ function setupStudioEventListeners(els) {
         if (ctx) {
             ctx.clearRect(0, 0, els.waveformCanvas.width, els.waveformCanvas.height);
         }
+        
+        // Reset mastering panel
+        resetMasteringPanel(els);
+    });
+    
+    // Mastering: Process button
+    els.btnMasterProcess?.addEventListener('click', async () => {
+        await processMasteringRecording(els);
+    });
+    
+    // Mastering: Play processed button
+    els.btnMasterPlay?.addEventListener('click', () => {
+        toggleMasteringPlayback(els);
     });
     
 }
@@ -1313,6 +1361,9 @@ function updateStudioRecordingUI(els, success) {
         
         // Draw waveform preview
         drawWaveformPreview(els.waveformCanvas);
+        
+        // Show mastering panel and reset it for new recording
+        showMasteringPanel(els);
     }
 }
 
@@ -1369,6 +1420,164 @@ function updateStudioPlaybackUI(els, isPlaying) {
     }
 }
 
+// ============================================
+// Mastering Functions
+// ============================================
+
+/**
+ * Show the mastering panel and reset it for a new recording
+ */
+function showMasteringPanel(els) {
+    if (!els.masteringPanel) return;
+    
+    // Show panel
+    els.masteringPanel.style.display = 'block';
+    
+    // Reset to initial state
+    els.masterInputLufs.textContent = '—';
+    els.masterOutputLufs.textContent = '—';
+    els.masterStatus.style.display = 'none';
+    els.masterStatus.className = 'mastering-status';
+    els.masterStatus.textContent = '';
+    els.btnMasterProcess.disabled = false;
+    els.btnMasterProcess.textContent = '🎚️ Process for Streaming';
+    els.btnMasterPlay.style.display = 'none';
+    
+    // Clean up any previous processed audio
+    if (masteringProcessedUrl) {
+        URL.revokeObjectURL(masteringProcessedUrl);
+        masteringProcessedUrl = null;
+    }
+    if (masteringPlaybackAudio) {
+        masteringPlaybackAudio.pause();
+        masteringPlaybackAudio = null;
+    }
+}
+
+/**
+ * Reset mastering panel to hidden state
+ */
+function resetMasteringPanel(els) {
+    if (!els.masteringPanel) return;
+    
+    els.masteringPanel.style.display = 'none';
+    els.masterInputLufs.textContent = '—';
+    els.masterOutputLufs.textContent = '—';
+    els.masterStatus.style.display = 'none';
+    els.btnMasterPlay.style.display = 'none';
+    
+    // Clean up
+    if (masteringProcessedUrl) {
+        URL.revokeObjectURL(masteringProcessedUrl);
+        masteringProcessedUrl = null;
+    }
+    if (masteringPlaybackAudio) {
+        masteringPlaybackAudio.pause();
+        masteringPlaybackAudio = null;
+    }
+}
+
+/**
+ * Process the recording for streaming
+ */
+async function processMasteringRecording(els) {
+    const recordingUrl = getRecordingUrl();
+    if (!recordingUrl) {
+        setMasteringStatus(els, 'No recording available', 'error');
+        return;
+    }
+    
+    // Update UI to processing state
+    els.btnMasterProcess.disabled = true;
+    els.btnMasterProcess.textContent = 'Processing...';
+    setMasteringStatus(els, 'Analyzing loudness...', 'processing');
+    
+    try {
+        // Decode the recording
+        const inputBuffer = await decodeRecordingBlob(recordingUrl);
+        
+        // Update status
+        setMasteringStatus(els, 'Applying normalization...', 'processing');
+        
+        // Process for streaming
+        const result = await processForStreaming(inputBuffer);
+        
+        // Update meters
+        const inputDisplay = result.inputLufs <= -60 ? '-∞' : result.inputLufs.toFixed(1);
+        const outputDisplay = result.outputLufs <= -60 ? '-∞' : result.outputLufs.toFixed(1);
+        els.masterInputLufs.textContent = inputDisplay;
+        els.masterOutputLufs.textContent = outputDisplay;
+        
+        // Create playable URL from processed buffer
+        masteringProcessedUrl = audioBufferToWavUrl(result.buffer);
+        
+        // Check if output meets target (within ±1 LU of -14)
+        const targetLufs = -14;
+        const tolerance = 1.5;
+        const meetsSpec = Math.abs(result.outputLufs - targetLufs) <= tolerance;
+        
+        if (meetsSpec) {
+            setMasteringStatus(els, '✓ Ready for streaming (-14 LUFS)', 'ready');
+        } else {
+            // This shouldn't happen often, but handle it
+            setMasteringStatus(els, `Processed to ${result.outputLufs.toFixed(1)} LUFS`, 'warning');
+        }
+        
+        // Show play button
+        els.btnMasterPlay.style.display = 'inline-block';
+        els.btnMasterProcess.textContent = '🎚️ Reprocess';
+        els.btnMasterProcess.disabled = false;
+        
+    } catch (err) {
+        console.error('Mastering error:', err);
+        setMasteringStatus(els, err.message || 'Processing failed', 'error');
+        els.btnMasterProcess.textContent = '🎚️ Retry';
+        els.btnMasterProcess.disabled = false;
+    }
+}
+
+/**
+ * Set mastering status message
+ */
+function setMasteringStatus(els, message, type) {
+    els.masterStatus.textContent = message;
+    els.masterStatus.className = `mastering-status ${type}`;
+    els.masterStatus.style.display = 'block';
+}
+
+/**
+ * Toggle playback of processed audio
+ */
+function toggleMasteringPlayback(els) {
+    if (!masteringProcessedUrl) return;
+    
+    if (masteringPlaybackAudio && !masteringPlaybackAudio.paused) {
+        // Stop playback
+        masteringPlaybackAudio.pause();
+        masteringPlaybackAudio.currentTime = 0;
+        els.btnMasterPlay.textContent = '▶ Play Processed';
+        els.btnMasterPlay.classList.remove('playing');
+    } else {
+        // Start playback
+        if (!masteringPlaybackAudio) {
+            masteringPlaybackAudio = new Audio();
+            masteringPlaybackAudio.addEventListener('ended', () => {
+                els.btnMasterPlay.textContent = '▶ Play Processed';
+                els.btnMasterPlay.classList.remove('playing');
+            });
+        }
+        
+        masteringPlaybackAudio.src = masteringProcessedUrl;
+        masteringPlaybackAudio.play().catch(err => {
+            console.warn('Mastering playback failed:', err);
+            els.btnMasterPlay.textContent = '▶ Play Processed';
+            els.btnMasterPlay.classList.remove('playing');
+        });
+        els.btnMasterPlay.textContent = '⏹ Stop';
+        els.btnMasterPlay.classList.add('playing');
+    }
+}
+
 /**
  * Format seconds to MM:SS
  */
@@ -1391,6 +1600,16 @@ function stopStudioScreen() {
     if (studioPlaybackAudio) {
         studioPlaybackAudio.pause();
         studioPlaybackAudio = null;
+    }
+    
+    // Stop mastering playback and cleanup
+    if (masteringPlaybackAudio) {
+        masteringPlaybackAudio.pause();
+        masteringPlaybackAudio = null;
+    }
+    if (masteringProcessedUrl) {
+        URL.revokeObjectURL(masteringProcessedUrl);
+        masteringProcessedUrl = null;
     }
     
     // Clear timers

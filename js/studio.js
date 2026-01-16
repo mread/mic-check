@@ -86,6 +86,11 @@ const studioState = {
 // Peak hold duration in ms
 const PEAK_HOLD_DURATION = 2000;
 
+// Pre-roll delay before recording starts (ms)
+// Allows time for mouse click sound to dissipate before capture begins
+// Typical mouse click is 50-100ms, so 250ms provides comfortable margin
+const RECORDING_PRE_ROLL_MS = 250;
+
 /**
  * Initialize the studio monitor with a device
  * @param {string} deviceId - The device ID to monitor
@@ -169,7 +174,18 @@ export async function initStudio(deviceId) {
         // Detect channel count (mono vs stereo)
         const settings = track?.getSettings() || {};
         studioState.channelCount = settings.channelCount || 2;
-        console.log(`Audio device "${label}" has ${studioState.channelCount} channel(s)`);
+        
+        // Log what we requested vs what was applied
+        console.log(`Studio audio: "${label}"`);
+        console.log(`  Channels: ${studioState.channelCount}`);
+        console.log(`  AGC requested: ${studioState.processingEnabled}, applied: ${settings.autoGainControl}`);
+        console.log(`  Noise suppression requested: ${studioState.processingEnabled}, applied: ${settings.noiseSuppression}`);
+        console.log(`  Echo cancellation requested: ${studioState.processingEnabled}, applied: ${settings.echoCancellation}`);
+        
+        // Warn if browser ignored our AGC=off request
+        if (settings.autoGainControl === true && !studioState.processingEnabled) {
+            console.warn('⚠️ Browser ignored AGC=false constraint! AGC is ON despite our request.');
+        }
         
         return { success: true, label, channelCount: studioState.channelCount };
         
@@ -773,9 +789,8 @@ export function startRecording() {
         return Promise.resolve(false);
     }
     
-    studioState.recorder = new PlaybackRecorder(studioState.stream);
+    // Mark as recording immediately (prevents double-clicks)
     studioState.isRecording = true;
-    studioState.recordingStartTime = performance.now();
     studioState.waveformData = [];
     
     // Clean up old recording
@@ -784,9 +799,24 @@ export function startRecording() {
         studioState.recordingUrl = null;
     }
     
-    // Start recording (max 30 seconds) - returns promise that resolves when complete
-    return studioState.recorder.start(30000)
+    // Pre-roll delay to avoid capturing mouse click sound
+    return new Promise(resolve => setTimeout(resolve, RECORDING_PRE_ROLL_MS))
+        .then(() => {
+            // Create recorder after pre-roll (user may have cancelled during delay)
+            if (!studioState.isRecording) {
+                return false;
+            }
+            
+            studioState.recorder = new PlaybackRecorder(studioState.stream);
+            studioState.recordingStartTime = performance.now();
+            
+            // Start recording (max 30 seconds) - returns promise that resolves when complete
+            return studioState.recorder.start(30000);
+        })
         .then(blobUrl => {
+            if (blobUrl === false) {
+                return false; // Cancelled during pre-roll
+            }
             studioState.recordingUrl = blobUrl;
             studioState.isRecording = false;
             return true;
