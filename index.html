@@ -1646,25 +1646,6 @@
             cursor: not-allowed;
         }
         
-        /* Processing toggle in recording strip */
-        .studio-processing-toggle {
-            display: flex;
-            align-items: center;
-            gap: 0.75rem;
-            margin-top: 0.75rem;
-            padding-top: 0.75rem;
-            border-top: 1px solid var(--border-light);
-            font-size: 0.85rem;
-        }
-        
-        .studio-processing-label {
-            color: var(--text-secondary);
-        }
-        
-        .studio-processing-toggle .toggle-switch {
-            transform: scale(0.85);
-        }
-        
         /* Permission prompt for studio */
         .studio-permission-prompt {
             text-align: center;
@@ -2381,16 +2362,6 @@
                             <button id="studio-rec-play" class="studio-recording-btn" disabled>▶ Play</button>
                             <button id="studio-rec-delete" class="studio-recording-btn" disabled>🗑</button>
                         </div>
-                    </div>
-                    
-                    <!-- Processing toggle -->
-                    <div class="studio-processing-toggle">
-                        <span class="studio-processing-label">Audio Processing (AGC, noise suppression):</span>
-                        <label class="toggle-switch">
-                            <input type="checkbox" id="studio-processing-toggle" checked>
-                            <span class="toggle-slider"></span>
-                        </label>
-                        <span id="studio-processing-status" style="font-size: 0.8rem; color: var(--text-muted);">On</span>
                     </div>
                 </div>
             </div>

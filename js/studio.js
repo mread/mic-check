@@ -78,8 +78,9 @@ const studioState = {
     isPlaying: false,
     audioElement: null,
     
-    // Processing mode
-    processingEnabled: true
+    // Processing mode (AGC, noise suppression, echo cancellation)
+    // Default OFF for professional recording - preserves raw audio quality
+    processingEnabled: false
 };
 
 // Peak hold duration in ms
@@ -866,20 +867,6 @@ export function resetPeaks() {
     studioState.peakHoldR = -Infinity;
 }
 
-/**
- * Set processing mode (AGC on/off)
- */
-export function setProcessingEnabled(enabled) {
-    studioState.processingEnabled = enabled;
-    // Will take effect on next device switch
-}
-
-/**
- * Get current processing mode
- */
-export function isProcessingEnabled() {
-    return studioState.processingEnabled;
-}
 
 /**
  * Clean up all resources

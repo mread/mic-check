@@ -93,8 +93,6 @@ import {
     deleteRecording,
     isRecording as isStudioRecording,
     resetPeaks,
-    setProcessingEnabled,
-    isProcessingEnabled,
     drawWaveformPreview,
     switchDevice as switchStudioDevice,
     isRunning as isStudioRunning,
@@ -1032,11 +1030,7 @@ function getStudioElements() {
         waveformCanvas: document.getElementById('studio-waveform-canvas'),
         waveformEmpty: document.getElementById('studio-waveform-empty'),
         recPlay: document.getElementById('studio-rec-play'),
-        recDelete: document.getElementById('studio-rec-delete'),
-        
-        // Processing toggle
-        processingToggle: document.getElementById('studio-processing-toggle'),
-        processingStatus: document.getElementById('studio-processing-status')
+        recDelete: document.getElementById('studio-rec-delete')
     };
 }
 
@@ -1289,17 +1283,6 @@ function setupStudioEventListeners(els) {
         }
     });
     
-    // Processing toggle
-    els.processingToggle?.addEventListener('change', async (e) => {
-        const enabled = e.target.checked;
-        setProcessingEnabled(enabled);
-        els.processingStatus.textContent = enabled ? 'On' : 'Off';
-        
-        // Re-initialize with new settings if running (but not during recording)
-        if (isStudioRunning() && selectedStudioDeviceId && !isStudioRecording()) {
-            await startStudioMonitor(selectedStudioDeviceId, els);
-        }
-    });
 }
 
 /**
