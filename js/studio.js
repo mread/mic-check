@@ -242,6 +242,13 @@ export function startVisualization(elements) {
     const timeDomainL = new Float32Array(studioState.analyserL.fftSize);
     const timeDomainR = new Float32Array(studioState.analyserR.fftSize);
     
+    // Performance monitoring
+    let lastFrameTime = performance.now();
+    let frameCount = 0;
+    let totalRenderTime = 0;
+    let droppedFrames = 0;
+    const PERF_LOG_INTERVAL = 300; // Log every 300 frames (~5 seconds at 60fps)
+    
     function update() {
         if (!studioState.isRunning || !studioState.audioContext || 
             studioState.audioContext.state === 'closed') {
@@ -251,6 +258,14 @@ export function startVisualization(elements) {
         
         studioState.animationId = requestAnimationFrame(update);
         const now = performance.now();
+        
+        // Performance tracking
+        const frameDelta = now - lastFrameTime;
+        if (frameDelta > 20) { // Below 50fps threshold
+            droppedFrames++;
+        }
+        lastFrameTime = now;
+        const renderStart = performance.now();
         
         // Update spectrogram
         if (studioState.spectrogramCtx && studioState.frequencyData && elements.spectrogramCanvas) {
@@ -366,6 +381,20 @@ export function startVisualization(elements) {
         if (elements.balanceValue) {
             const balance = calculateBalance(rmsL, rmsR);
             elements.balanceValue.textContent = balance;
+        }
+        
+        // Performance logging
+        const renderTime = performance.now() - renderStart;
+        totalRenderTime += renderTime;
+        frameCount++;
+        
+        if (frameCount >= PERF_LOG_INTERVAL) {
+            const avgRenderTime = totalRenderTime / frameCount;
+            const dropRate = (droppedFrames / frameCount * 100).toFixed(1);
+            console.log(`[Studio Perf] Avg render: ${avgRenderTime.toFixed(2)}ms | Dropped: ${droppedFrames}/${frameCount} (${dropRate}%) | FFT size: ${studioState.analyser.fftSize}`);
+            frameCount = 0;
+            totalRenderTime = 0;
+            droppedFrames = 0;
         }
         
         // Update waveform if recording

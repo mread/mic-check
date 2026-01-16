@@ -37,7 +37,8 @@ import {
     analyzeChannelBalance,
     populateDeviceList,
     collectKWeightedSamples,
-    getRmsFromAnalyser
+    getRmsFromAnalyser,
+    getSampleIntegrity
 } from './audio.js';
 
 import { calculateGatedLufs } from './lufs.js';
@@ -2017,6 +2018,15 @@ function finishVoiceRecording() {
     // Calculate LUFS using ITU-R BS.1770 gating algorithm
     const lufsResult = calculateGatedLufs(levelCheckState.lufsCollector?.getBlocks() || []);
     
+    // Check sample collection integrity
+    const integrity = getSampleIntegrity();
+    if (!integrity.isReliable) {
+        console.warn(`[LUFS Integrity] Sample collection had gaps: ${integrity.gaps} gaps, max ${integrity.maxGapMs}ms, coverage ${integrity.coverage}%`);
+        console.warn('[LUFS Integrity] Measurement may be less accurate due to main thread lag. For production use, AudioWorklet would be needed.');
+    } else {
+        console.log(`[LUFS Integrity] Sample collection OK: coverage ${integrity.coverage}%, no gaps detected`);
+    }
+    
     // Handle edge cases from LUFS calculation
     if (lufsResult.error === 'insufficient-data') {
         console.warn('LUFS calculation: insufficient data, need at least 400ms of audio');
@@ -2031,7 +2041,7 @@ function finishVoiceRecording() {
         }
     }
     
-    console.log('LUFS calculation result:', lufsResult);
+    console.log('LUFS calculation result:', lufsResult, 'integrity:', integrity);
     
     levelCheckState.voicePeakDb = levelCheckState.peakVoice;
     levelCheckState.snr = levelCheckState.voiceLufs - levelCheckState.noiseFloorDb;

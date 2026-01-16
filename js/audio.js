@@ -40,7 +40,17 @@ export const levelCheckState = {
     appliedSettings: null,
     contextSampleRate: null,
     userAgcPreference: false,
-    selectedDeviceId: null
+    selectedDeviceId: null,
+    // Sample collection integrity tracking
+    // Detects gaps in sample collection that could affect LUFS accuracy
+    sampleIntegrity: {
+        lastCollectionTime: null,
+        expectedSamples: 0,
+        collectedSamples: 0,
+        gaps: 0,           // Number of times we detected a gap
+        maxGapMs: 0,       // Largest gap detected
+        startTime: null
+    }
 };
 
 /**
@@ -70,6 +80,15 @@ export function resetQualityTestData() {
     if (levelCheckState.lufsCollector) {
         levelCheckState.lufsCollector.reset();
     }
+    // Reset sample integrity tracking
+    levelCheckState.sampleIntegrity = {
+        lastCollectionTime: null,
+        expectedSamples: 0,
+        collectedSamples: 0,
+        gaps: 0,
+        maxGapMs: 0,
+        startTime: null
+    };
 }
 
 /**
@@ -259,17 +278,69 @@ export function sampleChannels() {
 /**
  * Collect K-weighted samples for LUFS measurement
  * Call this during voice recording to accumulate samples into blocks
+ * 
+ * Also tracks sample collection integrity - detects gaps that could
+ * affect LUFS accuracy (since we use AnalyserNode snapshots rather
+ * than AudioWorklet continuous streaming).
  */
 export function collectKWeightedSamples() {
     if (!levelCheckState.kWeightedAnalyser || !levelCheckState.lufsCollector) {
         return;
     }
     
+    const now = performance.now();
+    const integrity = levelCheckState.sampleIntegrity;
+    const sampleRate = levelCheckState.contextSampleRate || 48000;
     const bufferLength = levelCheckState.kWeightedAnalyser.fftSize;
+    
+    // Initialize on first call
+    if (!integrity.startTime) {
+        integrity.startTime = now;
+        integrity.lastCollectionTime = now;
+    }
+    
+    // Detect gaps: if time since last collection exceeds buffer duration by 50%,
+    // we likely missed samples (AnalyserNode overwrote them before we read)
+    const timeSinceLastMs = now - integrity.lastCollectionTime;
+    const bufferDurationMs = (bufferLength / sampleRate) * 1000;
+    const gapThresholdMs = bufferDurationMs * 1.5; // 50% margin
+    
+    if (timeSinceLastMs > gapThresholdMs && integrity.lastCollectionTime !== integrity.startTime) {
+        integrity.gaps++;
+        if (timeSinceLastMs > integrity.maxGapMs) {
+            integrity.maxGapMs = timeSinceLastMs;
+        }
+    }
+    
+    integrity.lastCollectionTime = now;
+    integrity.collectedSamples += bufferLength;
+    
+    // Track expected samples based on elapsed time
+    const elapsedMs = now - integrity.startTime;
+    integrity.expectedSamples = Math.round((elapsedMs / 1000) * sampleRate);
+    
     const dataArray = new Float32Array(bufferLength);
     levelCheckState.kWeightedAnalyser.getFloatTimeDomainData(dataArray);
     
     levelCheckState.lufsCollector.addSamples(dataArray);
+}
+
+/**
+ * Get sample collection integrity stats
+ * @returns {object} Integrity statistics for LUFS measurement
+ */
+export function getSampleIntegrity() {
+    const integrity = levelCheckState.sampleIntegrity;
+    const coverage = integrity.expectedSamples > 0 
+        ? (integrity.collectedSamples / integrity.expectedSamples * 100).toFixed(1)
+        : 100;
+    
+    return {
+        gaps: integrity.gaps,
+        maxGapMs: Math.round(integrity.maxGapMs),
+        coverage: parseFloat(coverage),
+        isReliable: integrity.gaps === 0 && parseFloat(coverage) >= 95
+    };
 }
 
 /**
