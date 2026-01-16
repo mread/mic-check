@@ -40,12 +40,14 @@ Just open [`index.html`](index.html) in your browser, or visit the [live demo](h
 
 ## Development
 
-It's a single HTML file with no dependencies. To run locally:
+No build process or dependencies required. To run locally:
 
 ```bash
-python3 -m http.server 8080
-# Open http://localhost:8080
+python3 dev-server.py
+# Open http://localhost:8765
 ```
+
+The dev server sends no-cache headers to ensure you always see your latest changes.
 
 ## License
 

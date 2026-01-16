@@ -31,9 +31,11 @@ mic-check is a browser-based microphone diagnostic tool. It helps users:
 
 ```bash
 # From the project root directory:
-python3 -m http.server 8765
+python3 dev-server.py
 # Then open http://localhost:8765
 ```
+
+The dev server sends no-cache headers to prevent browser caching issues during development.
 
 ## Key Features
 
