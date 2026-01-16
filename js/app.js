@@ -328,6 +328,14 @@ function updateRowAction(diagId, result, actionCell, results) {
         return;
     }
     
+    // Voice level test - RUNNING: keep passage visible, don't modify the recording UI
+    if (diagId === 'voice-level' && result.status === STATUS.RUNNING) {
+        // The recording UI with rainbow passage is already set by startVoiceLevelTest()
+        // Just ensure the action cell stays visible
+        actionCell.style.display = 'block';
+        return;
+    }
+    
     // Fix instructions go inline for failed/warn tests
     if ((result.status === STATUS.FAIL || result.status === STATUS.WARN) && result.fix) {
         actionCell.innerHTML = `<strong>How to fix:</strong> ${result.fix}`;
@@ -879,12 +887,9 @@ async function startVoiceLevelTest() {
     const detailCell = row?.querySelector('.diag-detail');
     const actionCell = row?.querySelector('.diag-action');
     
-    // Hide action, show progress in detail
-    if (actionCell) actionCell.style.display = 'none';
-    
-    // Add level meter to detail area (reusing mic-level-meter component)
-    if (detailCell) {
-        detailCell.innerHTML = `
+    // Replace action cell content with recording UI + passage (keep passage visible!)
+    if (actionCell) {
+        actionCell.innerHTML = `
             <div class="diag-recording">
                 <span class="diag-recording-dot"></span>
                 <span>Recording... <span id="voice-countdown">10s</span></span>
@@ -892,6 +897,12 @@ async function startVoiceLevelTest() {
             <div class="mic-level-meter inline" id="voice-level-meter">
                 <div class="mic-level-meter-fill" id="voice-level-bar"></div>
                 <span class="mic-level-meter-text" id="voice-db-reading">—</span>
+            </div>
+            <div class="rainbow-passage" style="margin-top: 0.75rem; padding: 0.75rem; background: #fffbf0; border-left: 3px solid #f0c040; font-style: italic; font-size: 0.85rem; line-height: 1.5;">
+                "The rainbow appears when sunlight shines through falling rain. 
+                People look with awe at the brilliant colors stretching across the sky. 
+                Vibrant reds blend gently into warm oranges and yellows, 
+                while cool blues and deep purples fade softly at the edges."
             </div>
         `;
     }
