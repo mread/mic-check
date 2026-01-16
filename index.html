@@ -2406,15 +2406,59 @@
                     <!-- Readouts -->
                     <div class="studio-readouts">
                         <div class="studio-readout">
-                            <div class="studio-readout-label">Peak (dBFS)</div>
+                            <div class="studio-readout-label">
+                                Peak (dBFS)
+                                <span class="studio-help-icon" tabindex="0">ⓘ
+                                    <div class="studio-help-tooltip">
+                                        <strong>What it shows</strong>
+                                        The highest signal level detected, in decibels relative to Full Scale (dBFS). 0 dBFS = maximum digital level.
+                                        <ul>
+                                            <li><strong>-12 to -6 dBFS:</strong> Good peak range — loud but safe</li>
+                                            <li><strong>Above -3 dBFS:</strong> Risk of clipping on loud moments</li>
+                                            <li><strong>0 dBFS:</strong> Clipping — audio is distorting</li>
+                                            <li><strong>Below -20 dBFS:</strong> Recording too quiet</li>
+                                        </ul>
+                                        <em style="font-size: 0.8rem; color: var(--text-muted);">Note: This is sample peak, not True Peak (which requires 4× oversampling).</em>
+                                    </div>
+                                </span>
+                            </div>
                             <div id="studio-peak-value" class="studio-readout-value">-∞</div>
                         </div>
                         <div class="studio-readout">
-                            <div class="studio-readout-label">LUFS (short-term)</div>
+                            <div class="studio-readout-label">
+                                LUFS (short-term)
+                                <span class="studio-help-icon" tabindex="0">ⓘ
+                                    <div class="studio-help-tooltip">
+                                        <strong>What it shows</strong>
+                                        Perceived loudness over 3 seconds, in Loudness Units relative to Full Scale (LUFS). Unlike dB, LUFS uses K-weighting to match how humans hear.
+                                        <ul>
+                                            <li><strong>-14 LUFS:</strong> Spotify, YouTube target</li>
+                                            <li><strong>-16 LUFS:</strong> Podcast standard</li>
+                                            <li><strong>-23 LUFS:</strong> Broadcast (EBU R128)</li>
+                                            <li><strong>-24 LUFS:</strong> Broadcast (ATSC A/85)</li>
+                                        </ul>
+                                        <em style="font-size: 0.8rem; color: var(--text-muted);">1 LUFS ≈ 1 dB for comparison purposes.</em>
+                                    </div>
+                                </span>
+                            </div>
                             <div id="studio-lufs-value" class="studio-readout-value">-∞</div>
                         </div>
                         <div id="studio-balance-container" class="studio-readout">
-                            <div class="studio-readout-label">Balance</div>
+                            <div class="studio-readout-label">
+                                Balance
+                                <span class="studio-help-icon" tabindex="0">ⓘ
+                                    <div class="studio-help-tooltip">
+                                        <strong>What it shows</strong>
+                                        Left/right channel balance for stereo microphones. Shows which channel is louder.
+                                        <ul>
+                                            <li><strong>C (Center):</strong> Both channels equal — ideal</li>
+                                            <li><strong>L or R:</strong> One channel is louder</li>
+                                            <li><strong>Mono mic:</strong> This indicator is hidden</li>
+                                        </ul>
+                                        <em style="font-size: 0.8rem; color: var(--text-muted);">Imbalance may indicate a dead channel or stereo misconfiguration.</em>
+                                    </div>
+                                </span>
+                            </div>
                             <div id="studio-balance-value" class="studio-readout-value">—</div>
                         </div>
                     </div>
