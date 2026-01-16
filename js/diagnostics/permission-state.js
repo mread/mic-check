@@ -28,6 +28,8 @@ export const diagnostic = {
     description: 'Checks if microphone permission has been granted',
     scope: 'site',  // Site-level permission - stable once granted
     requiresPermission: false,
+    pendingMessage: 'Checking permission status...',
+    runningMessage: 'Checking permission...',
     
     /**
      * Run the diagnostic test

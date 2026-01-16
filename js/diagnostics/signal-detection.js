@@ -19,6 +19,8 @@ export const diagnostic = {
     description: 'Checks if audio is being received from the microphone',
     scope: 'device',  // Device-specific - re-run when device changes
     requiresPermission: true,
+    pendingMessage: 'Waiting to check audio signal...',
+    runningMessage: 'Listening for audio...',
     
     /**
      * Run the diagnostic test

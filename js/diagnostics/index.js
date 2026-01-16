@@ -13,6 +13,7 @@
  * - 'environment': Tests that check the browser/OS (run once, never change)
  * - 'site': Tests that check site-level state like permissions (run once per page)
  * - 'device': Tests specific to the selected microphone (re-run when device changes)
+ * - 'quality': Signal quality tests - user-initiated, run after device tests pass
  */
 
 import { diagnostic as browserSupport } from './browser-support.js';
@@ -20,9 +21,11 @@ import { diagnostic as permissionState } from './permission-state.js';
 import { diagnostic as deviceEnumeration } from './device-enumeration.js';
 import { diagnostic as streamAcquisition } from './stream-acquisition.js';
 import { diagnostic as signalDetection } from './signal-detection.js';
+import { diagnostic as noiseFloor } from './noise-floor.js';
+import { diagnostic as voiceLevel } from './voice-level.js';
 
 /**
- * All available diagnostics in execution order
+ * Core diagnostics in execution order (auto-run)
  * Earlier diagnostics that don't require permission run first
  */
 export const diagnostics = [
@@ -34,12 +37,27 @@ export const diagnostics = [
 ];
 
 /**
+ * Quality diagnostics (user-initiated)
+ * These run after core diagnostics pass and require user action
+ */
+export const qualityDiagnostics = [
+    noiseFloor,
+    voiceLevel
+];
+
+/**
+ * All diagnostics (core + quality)
+ */
+export const allDiagnostics = [...diagnostics, ...qualityDiagnostics];
+
+/**
  * Diagnostic scopes - determines when tests should re-run
  */
 export const SCOPE = {
     ENVIRONMENT: 'environment', // Browser/OS level - run once
     SITE: 'site',               // Site-level (permissions) - run once per page
-    DEVICE: 'device'            // Device-specific - re-run when device changes
+    DEVICE: 'device',           // Device-specific - re-run when device changes
+    QUALITY: 'quality'          // Quality tests - user-initiated
 };
 
 /**
@@ -89,18 +107,22 @@ export function createContext() {
 
 /**
  * Create initial results object with all tests pending
+ * @param {boolean} includeQuality - Whether to include quality diagnostics
  */
-export function createInitialResults() {
+export function createInitialResults(includeQuality = true) {
     const results = {};
-    for (const diag of diagnostics) {
+    const diagsToInclude = includeQuality ? allDiagnostics : diagnostics;
+    
+    for (const diag of diagsToInclude) {
         results[diag.id] = {
             id: diag.id,
             name: diag.name,
             description: diag.description,
             scope: diag.scope,
             requiresPermission: diag.requiresPermission,
+            userInitiated: diag.userInitiated || false,
             status: STATUS.PENDING,
-            message: 'Waiting...',
+            message: diag.pendingMessage || 'Waiting...',
             details: null,
             fix: null
         };
@@ -113,7 +135,7 @@ export function createInitialResults() {
  */
 async function runSingleDiagnostic(diag, context, results, onUpdate) {
     results[diag.id].status = STATUS.RUNNING;
-    results[diag.id].message = 'Checking...';
+    results[diag.id].message = diag.runningMessage || 'Checking...';
     if (onUpdate) onUpdate(results);
     
     try {
@@ -296,8 +318,13 @@ export function cleanupContext(context) {
  * @param {object} results - Results object
  * @returns {string} Overall status: 'pass', 'warn', 'fail', or 'pending'
  */
-export function getOverallStatus(results) {
-    const statuses = Object.values(results).map(r => r.status);
+export function getOverallStatus(results, includeQuality = false) {
+    // By default, only check core diagnostics (not quality tests)
+    // Quality tests are optional and user-initiated
+    const diagsToCheck = includeQuality ? allDiagnostics : diagnostics;
+    const statuses = diagsToCheck
+        .filter(d => results[d.id])  // Only check diagnostics that have results
+        .map(d => results[d.id].status);
     
     if (statuses.some(s => s === STATUS.RUNNING || s === STATUS.PENDING)) {
         return STATUS.PENDING;
@@ -309,4 +336,104 @@ export function getOverallStatus(results) {
         return STATUS.WARN;
     }
     return STATUS.PASS;
+}
+
+/**
+ * Check if quality diagnostics are ready to run
+ * @param {object} results - Current results
+ * @returns {boolean} True if signal-detection passed
+ */
+export function canRunQualityDiagnostics(results) {
+    return results['signal-detection']?.status === STATUS.PASS;
+}
+
+/**
+ * Run a specific quality diagnostic by ID
+ * Quality diagnostics are user-initiated and require onProgress callback
+ * 
+ * @param {string} diagId - Diagnostic ID ('noise-floor' or 'voice-level')
+ * @param {object} context - Diagnostic context
+ * @param {object} results - Results object to update
+ * @param {object} options - Options
+ * @param {function} options.onProgress - Called with progress updates during recording
+ * @param {function} options.onUpdate - Called when result is ready
+ * @returns {Promise<object>} Updated result for this diagnostic
+ */
+export async function runQualityDiagnostic(diagId, context, results, options = {}) {
+    const { onProgress, onUpdate } = options;
+    
+    const diag = qualityDiagnostics.find(d => d.id === diagId);
+    if (!diag) {
+        throw new Error(`Unknown quality diagnostic: ${diagId}`);
+    }
+    
+    // Check if prerequisites are met
+    if (diag.canRun && !diag.canRun(context, results)) {
+        results[diagId] = {
+            ...results[diagId],
+            status: STATUS.SKIP,
+            message: 'Prerequisites not met'
+        };
+        if (onUpdate) onUpdate(results);
+        return results[diagId];
+    }
+    
+    // Mark as running
+    results[diagId].status = STATUS.RUNNING;
+    results[diagId].message = diag.runningMessage || 'Recording...';
+    if (onUpdate) onUpdate(results);
+    
+    try {
+        const result = await diag.test(context, { onProgress });
+        results[diagId] = {
+            ...results[diagId],
+            status: result.status,
+            message: result.message,
+            details: result.details || null,
+            fix: result.fix || null,
+            stereoIssue: result.stereoIssue || false
+        };
+    } catch (error) {
+        results[diagId] = {
+            ...results[diagId],
+            status: STATUS.FAIL,
+            message: `Error: ${error.message}`,
+            details: { error: error.message }
+        };
+    }
+    
+    if (onUpdate) onUpdate(results);
+    return results[diagId];
+}
+
+/**
+ * Activate quality section - remove inactive state from UI
+ * Call this when signal-detection passes
+ * 
+ * @param {object} results - Results object to update
+ * @param {function} onUpdate - Callback when results update
+ */
+export function activateQualitySection(results, onUpdate) {
+    // Update noise-floor to show it's ready for user action
+    if (results['noise-floor']) {
+        results['noise-floor'].message = 'Stay quiet for 5 seconds';
+    }
+    if (onUpdate) onUpdate(results);
+}
+
+/**
+ * Get the status icon for a diagnostic result
+ * @param {string} status - The status value
+ * @returns {string} Emoji icon
+ */
+export function getStatusIcon(status) {
+    switch (status) {
+        case STATUS.PASS: return '✅';
+        case STATUS.FAIL: return '❌';
+        case STATUS.WARN: return '⚠️';
+        case STATUS.SKIP: return '⏭️';
+        case STATUS.RUNNING: return '🔄';
+        case STATUS.PENDING:
+        default: return '⏸️';
+    }
 }

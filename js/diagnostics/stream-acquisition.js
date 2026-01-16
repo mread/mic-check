@@ -16,6 +16,8 @@ export const diagnostic = {
     description: 'Tests if we can access the selected microphone',
     scope: 'device',  // Device-specific - re-run when device changes
     requiresPermission: true,
+    pendingMessage: 'Waiting to access microphone...',
+    runningMessage: 'Accessing microphone...',
     
     /**
      * Run the diagnostic test

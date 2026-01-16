@@ -310,6 +310,33 @@ During recording, users see a countdown, a pulsing indicator, and remaining time
 
 ---
 
+### 12. User-Initiated Microphone Access
+
+**Rule:** Any feature that listens to the microphone must be explicitly started by the user. Never auto-start recording or monitoring.
+
+**Why:** Microphone access is a sensitive permission. Users should always know when they're being listened to and feel in control. Surprise recordings create anxiety and erode trust.
+
+**Applies to:**
+- Recording phases (silence test, voice test)
+- Live monitoring features
+- Any audio analysis that requires mic input
+
+**Canonical Example:**
+
+```2013:2014:index.html
+<button id="btn-start-silence" class="btn btn-primary btn-large" style="width: 100%;">
+    Start Silence Recording
+</button>
+```
+
+The silence recording phase doesn't auto-start after prerequisites pass. The user must explicitly click to begin.
+
+**Anti-pattern to avoid:** Auto-starting a 3-second countdown to recording immediately after permission is granted.
+
+**Reference:** Privacy-by-design principles; user agency
+
+---
+
 ## Studio Page — Design Notes
 
 The Studio page (`#studio`) is a DAW-inspired audio monitor designed to be compelling enough that users choose it over their DAW or OS-level audio monitoring. It should look professional and "cool" — not like a utility page.

@@ -7,6 +7,8 @@
 
 import { 
     diagnostics,
+    qualityDiagnostics,
+    allDiagnostics,
     STATUS,
     SCOPE,
     createContext,
@@ -14,8 +16,12 @@ import {
     runPrePermissionDiagnostics,
     runPermissionDiagnostics,
     runDeviceDiagnostics,
+    runQualityDiagnostic,
+    canRunQualityDiagnostics,
+    activateQualitySection,
     cleanupContext,
-    getOverallStatus
+    getOverallStatus,
+    getStatusIcon as getStatusIconFromRunner
 } from './diagnostics/index.js';
 
 import { 
@@ -158,7 +164,15 @@ function getStatusIcon(status) {
  * Fix instructions and actions are shown INLINE within each row
  */
 function updateDiagnosticTable(results) {
-    diagnostics.forEach(diag => {
+    // Update all diagnostics (core + quality)
+    // Fallback to diagnostics array if allDiagnostics not available (cache issue)
+    const diagsToUpdate = allDiagnostics || diagnostics;
+    
+    // Always update quality section state based on signal-detection result
+    // This must be called even if quality diagnostics aren't in the results yet
+    updateQualitySectionState(results);
+    
+    diagsToUpdate.forEach(diag => {
         const result = results[diag.id];
         if (!result) return;
         
@@ -166,7 +180,10 @@ function updateDiagnosticTable(results) {
         if (!row) return;
         
         // Update row status class
-        row.className = result.status || '';
+        row.className = row.className.replace(/\b(pass|fail|warn|skip|pending|running)\b/g, '').trim();
+        if (result.status) {
+            row.classList.add(result.status);
+        }
         
         // Update status icon
         const iconCell = row.querySelector('.diag-icon');
@@ -174,31 +191,164 @@ function updateDiagnosticTable(results) {
             iconCell.textContent = getStatusIcon(result.status);
         }
         
-        // Update detail text
+        // Update quality section inactive state for quality rows
+        if (diag.scope === SCOPE.QUALITY || diag.scope === 'quality') {
+            // If quality tests can run, ensure row isn't inactive
+            if (canRunQualityDiagnostics(results)) {
+                row.classList.remove('inactive');
+            }
+        }
+        
+        // Update detail text (but not if we're showing a level meter)
         const detailCell = row.querySelector('.diag-detail');
-        if (detailCell) {
+        if (detailCell && !detailCell.querySelector('.mic-level-meter')) {
             detailCell.textContent = result.message || '';
         }
         
         // Update inline action/fix area
         const actionCell = row.querySelector('.diag-action');
         if (actionCell) {
-            updateRowAction(diag.id, result, actionCell);
+            updateRowAction(diag.id, result, actionCell, results);
+        }
+    });
+    
+    // Check for stereo issues and show warning panel
+    if (results['voice-level']?.stereoIssue) {
+        const stereoWarning = document.getElementById('stereo-issue-warning');
+        if (stereoWarning) {
+            stereoWarning.style.display = 'block';
+        }
+    }
+    
+    // Show quality summary if both quality tests are done
+    updateQualitySummary(results);
+}
+
+/**
+ * Update quality section state (active/inactive)
+ */
+function updateQualitySectionState(results) {
+    const qualitySection = document.getElementById('diag-section-quality');
+    const noiseFloorRow = document.getElementById('diag-row-noise-floor');
+    const voiceLevelRow = document.getElementById('diag-row-voice-level');
+    
+    const canRun = canRunQualityDiagnostics(results);
+    
+    [qualitySection, noiseFloorRow, voiceLevelRow].forEach(el => {
+        if (el) {
+            if (canRun) {
+                el.classList.remove('inactive');
+            } else {
+                el.classList.add('inactive');
+            }
         }
     });
 }
 
 /**
+ * Update quality summary section
+ */
+function updateQualitySummary(results) {
+    const noiseResult = results['noise-floor'];
+    const voiceResult = results['voice-level'];
+    
+    // Only show summary when both quality tests are complete
+    const bothComplete = noiseResult && voiceResult &&
+        noiseResult.status !== STATUS.PENDING && noiseResult.status !== STATUS.RUNNING &&
+        voiceResult.status !== STATUS.PENDING && voiceResult.status !== STATUS.RUNNING;
+    
+    const summaryEl = document.getElementById('quality-summary');
+    const actionsEl = document.getElementById('quality-actions');
+    
+    if (!bothComplete || !summaryEl) return;
+    
+    const hasStereoIssue = voiceResult.stereoIssue;
+    const hasWarning = noiseResult.status === STATUS.WARN || voiceResult.status === STATUS.WARN;
+    const allPass = noiseResult.status === STATUS.PASS && voiceResult.status === STATUS.PASS;
+    
+    let icon, title, detail, bgColor;
+    
+    if (hasStereoIssue) {
+        icon = '🔧';
+        title = 'Fixable issue found';
+        detail = 'Stereo misconfiguration — see fix instructions above';
+        bgColor = '#fff3e0';
+    } else if (allPass) {
+        icon = '✅';
+        title = 'Your microphone is ready for calls';
+        detail = 'All tests passed';
+        bgColor = '#e6f4ea';
+    } else if (hasWarning) {
+        icon = '⚠️';
+        title = 'Some adjustments recommended';
+        detail = 'See suggestions above';
+        bgColor = '#fff3e0';
+    } else {
+        icon = '✅';
+        title = 'Tests complete';
+        detail = '';
+        bgColor = 'var(--bg-muted)';
+    }
+    
+    const iconEl = document.getElementById('quality-summary-icon');
+    const titleEl = document.getElementById('quality-summary-title');
+    const detailEl = document.getElementById('quality-summary-detail');
+    
+    if (iconEl) iconEl.textContent = icon;
+    if (titleEl) titleEl.textContent = title;
+    if (detailEl) detailEl.textContent = detail;
+    summaryEl.style.background = bgColor;
+    summaryEl.style.display = 'block';
+    
+    if (actionsEl) {
+        actionsEl.style.display = 'flex';
+    }
+}
+
+/**
  * Update inline action/fix for a specific row
  */
-function updateRowAction(diagId, result, actionCell) {
+function updateRowAction(diagId, result, actionCell, results) {
     // Permission button goes inline in permission-state row
-    if (diagId === 'permission-state' && result.status === STATUS.PENDING) {
+    // Show for both PENDING (explicit 'prompt') and WARN (API unavailable/uncertain)
+    if (diagId === 'permission-state' && 
+        (result.status === STATUS.PENDING || result.status === STATUS.WARN)) {
         actionCell.innerHTML = `
             <button class="btn btn-primary btn-small" onclick="window.MicCheck.continueWithPermissionTests()">
                 🔓 Request Audio Access
             </button>
             <div class="diag-action-hint">Your browser will ask you to allow access.</div>
+        `;
+        actionCell.style.display = 'block';
+        return;
+    }
+    
+    // Noise floor test - show start button when ready
+    if (diagId === 'noise-floor' && result.status === STATUS.PENDING && canRunQualityDiagnostics(results)) {
+        actionCell.innerHTML = `
+            <button class="btn btn-primary btn-small" id="btn-start-noise-test" onclick="window.MicCheck.startNoiseFloorTest()">
+                🎤 Start Silence Test (5s)
+            </button>
+            <div class="diag-action-hint">Stay quiet while we measure background noise.</div>
+        `;
+        actionCell.style.display = 'block';
+        return;
+    }
+    
+    // Voice level test - show start button when noise test is done
+    if (diagId === 'voice-level' && result.status === STATUS.PENDING && 
+        results['noise-floor']?.status === STATUS.PASS) {
+        actionCell.innerHTML = `
+            <button class="btn btn-primary btn-small" id="btn-start-voice-test" onclick="window.MicCheck.startVoiceLevelTest()">
+                🎤 Start Voice Test (10s)
+            </button>
+            <div class="diag-action-hint">Read the passage below at your normal speaking volume.</div>
+            <div class="rainbow-passage" style="margin-top: 0.75rem; padding: 0.75rem; background: #fffbf0; border-left: 3px solid #f0c040; font-style: italic; font-size: 0.85rem; line-height: 1.5;">
+                "The rainbow appears when sunlight shines through falling rain. 
+                People look with awe at the brilliant colors stretching across the sky. 
+                Vibrant reds blend gently into warm oranges and yellows, 
+                while cool blues and deep purples fade softly at the edges."
+            </div>
         `;
         actionCell.style.display = 'block';
         return;
@@ -220,17 +370,36 @@ function updateRowAction(diagId, result, actionCell) {
  * Reset all table rows to pending state
  */
 function resetDiagnosticTable() {
-    diagnostics.forEach(diag => {
+    const diagsToReset = allDiagnostics || diagnostics;
+    diagsToReset.forEach(diag => {
         const row = document.getElementById(`diag-row-${diag.id}`);
         if (!row) return;
         
-        row.className = '';
+        // Preserve class modifiers like 'diag-quality-section' but reset status classes
+        const preserveClasses = ['diag-quality-section', 'diag-section-row'];
+        const currentClasses = [...row.classList].filter(c => preserveClasses.includes(c));
+        row.className = currentClasses.join(' ');
+        
+        // Add inactive to quality rows
+        if (diag.scope === SCOPE.QUALITY || diag.scope === 'quality') {
+            row.classList.add('inactive');
+        }
         
         const iconCell = row.querySelector('.diag-icon');
         if (iconCell) iconCell.textContent = '⏸️';
         
         const detailCell = row.querySelector('.diag-detail');
-        if (detailCell) detailCell.textContent = '';
+        if (detailCell) {
+            // Set default message - quality tests show dependency, others show pending message
+            if (diag.id === 'noise-floor') {
+                detailCell.textContent = 'Waiting for audio signal test';
+            } else if (diag.id === 'voice-level') {
+                detailCell.textContent = 'Waiting for silence test';
+            } else {
+                // Use the diagnostic's pending message if available
+                detailCell.textContent = diag.pendingMessage || '';
+            }
+        }
         
         const actionCell = row.querySelector('.diag-action');
         if (actionCell) {
@@ -238,6 +407,22 @@ function resetDiagnosticTable() {
             actionCell.innerHTML = '';
         }
     });
+    
+    // Reset quality section header too
+    const qualitySection = document.getElementById('diag-section-quality');
+    if (qualitySection) {
+        qualitySection.classList.add('inactive');
+    }
+    
+    // Hide summary and stereo warning
+    const summaryEl = document.getElementById('quality-summary');
+    if (summaryEl) summaryEl.style.display = 'none';
+    
+    const stereoWarning = document.getElementById('stereo-issue-warning');
+    if (stereoWarning) stereoWarning.style.display = 'none';
+    
+    const actionsEl = document.getElementById('quality-actions');
+    if (actionsEl) actionsEl.style.display = 'none';
 }
 
 
@@ -598,6 +783,16 @@ async function showSuccessUI() {
     
     // Populate the mic monitor panel
     populateMicMonitorPanel(deduplicatedDevices, defaultDeviceId);
+    
+    // Activate quality section - signal detection passed
+    activateQualitySection(diagnosticResults, updateDiagnosticTable);
+    
+    // Update noise-floor to show it's ready (using the diagnostic's pendingMessage)
+    const noiseFloorDiag = qualityDiagnostics.find(d => d.id === 'noise-floor');
+    if (diagnosticResults['noise-floor'] && noiseFloorDiag) {
+        diagnosticResults['noise-floor'].message = noiseFloorDiag.pendingMessage;
+        updateDiagnosticTable(diagnosticResults);
+    }
 }
 
 // ============================================
@@ -618,6 +813,198 @@ export function stopTest() {
     
     diagnosticResults = null;
     audioDetected = false;
+}
+
+// ============================================
+// Quality Tests (User-Initiated)
+// ============================================
+
+/**
+ * Start the noise floor test (5 seconds of silence)
+ */
+async function startNoiseFloorTest() {
+    if (!diagnosticContext || !diagnosticResults) {
+        console.error('No diagnostic context available');
+        return;
+    }
+    
+    // Disable the start button to prevent double-clicks
+    const startBtn = document.getElementById('btn-start-noise-test');
+    if (startBtn) startBtn.disabled = true;
+    
+    const row = document.getElementById('diag-row-noise-floor');
+    const detailCell = row?.querySelector('.diag-detail');
+    const actionCell = row?.querySelector('.diag-action');
+    
+    // Hide action, show progress in detail
+    if (actionCell) actionCell.style.display = 'none';
+    
+    // Add level meter to detail area (reusing mic-level-meter component)
+    if (detailCell) {
+        detailCell.innerHTML = `
+            <div class="diag-recording">
+                <span class="diag-recording-dot"></span>
+                <span>Recording silence... <span id="noise-countdown">5s</span></span>
+            </div>
+            <div class="mic-level-meter inline" id="noise-level-meter">
+                <div class="mic-level-meter-fill" id="noise-level-bar"></div>
+                <span class="mic-level-meter-text" id="noise-db-reading">—</span>
+            </div>
+        `;
+    }
+    
+    // Run the noise floor diagnostic
+    await runQualityDiagnostic('noise-floor', diagnosticContext, diagnosticResults, {
+        onProgress: (progress) => {
+            // Update countdown
+            const countdownEl = document.getElementById('noise-countdown');
+            if (countdownEl) {
+                countdownEl.textContent = `${progress.remainingSeconds}s`;
+            }
+            
+            // Update level bar using mic-level-meter's clipPath approach
+            const levelBar = document.getElementById('noise-level-bar');
+            if (levelBar) {
+                const percent = Math.max(0, Math.min(100, ((progress.levelDb + 60) / 60) * 100));
+                levelBar.style.clipPath = `inset(0 ${100 - percent}% 0 0)`;
+            }
+            
+            // Update dB reading (in the meter text)
+            const dbReading = document.getElementById('noise-db-reading');
+            if (dbReading) {
+                dbReading.textContent = formatDb(progress.levelDb);
+            }
+        },
+        onUpdate: (results) => {
+            updateDiagnosticTable(results);
+        }
+    });
+    
+    // Update the detail to show final result
+    if (detailCell) {
+        detailCell.textContent = diagnosticResults['noise-floor'].message;
+    }
+    
+    // Update voice-level to show it's ready (using the diagnostic's pendingMessage)
+    const voiceLevelDiag = qualityDiagnostics.find(d => d.id === 'voice-level');
+    if (diagnosticResults['voice-level'] && voiceLevelDiag && 
+        diagnosticResults['noise-floor'].status === STATUS.PASS) {
+        diagnosticResults['voice-level'].message = voiceLevelDiag.pendingMessage;
+    }
+    
+    // Update the full table to show voice test button
+    updateDiagnosticTable(diagnosticResults);
+}
+
+/**
+ * Start the voice level test (10 seconds of speech)
+ */
+async function startVoiceLevelTest() {
+    if (!diagnosticContext || !diagnosticResults) {
+        console.error('No diagnostic context available');
+        return;
+    }
+    
+    // Disable the start button
+    const startBtn = document.getElementById('btn-start-voice-test');
+    if (startBtn) startBtn.disabled = true;
+    
+    const row = document.getElementById('diag-row-voice-level');
+    const detailCell = row?.querySelector('.diag-detail');
+    const actionCell = row?.querySelector('.diag-action');
+    
+    // Hide action, show progress in detail
+    if (actionCell) actionCell.style.display = 'none';
+    
+    // Add level meter to detail area (reusing mic-level-meter component)
+    if (detailCell) {
+        detailCell.innerHTML = `
+            <div class="diag-recording">
+                <span class="diag-recording-dot"></span>
+                <span>Recording... <span id="voice-countdown">10s</span></span>
+            </div>
+            <div class="mic-level-meter inline" id="voice-level-meter">
+                <div class="mic-level-meter-fill" id="voice-level-bar"></div>
+                <span class="mic-level-meter-text" id="voice-db-reading">—</span>
+            </div>
+        `;
+    }
+    
+    // Run the voice level diagnostic
+    await runQualityDiagnostic('voice-level', diagnosticContext, diagnosticResults, {
+        onProgress: (progress) => {
+            // Update countdown
+            const countdownEl = document.getElementById('voice-countdown');
+            if (countdownEl) {
+                countdownEl.textContent = `${progress.remainingSeconds}s`;
+            }
+            
+            // Update level bar using mic-level-meter's clipPath approach
+            const levelBar = document.getElementById('voice-level-bar');
+            if (levelBar) {
+                const percent = Math.max(0, Math.min(100, ((progress.levelDb + 60) / 60) * 100));
+                levelBar.style.clipPath = `inset(0 ${100 - percent}% 0 0)`;
+            }
+            
+            // Update dB reading (in the meter text)
+            const dbReading = document.getElementById('voice-db-reading');
+            if (dbReading) {
+                dbReading.textContent = formatDb(progress.levelDb);
+            }
+        },
+        onUpdate: (results) => {
+            updateDiagnosticTable(results);
+        }
+    });
+    
+    // Update the detail to show final result
+    if (detailCell) {
+        detailCell.textContent = diagnosticResults['voice-level'].message;
+    }
+    
+    // Update the full table
+    updateDiagnosticTable(diagnosticResults);
+    
+    // Update subtitle
+    updateSubtitle('Pre-flight check complete!');
+}
+
+/**
+ * Reset and run the test again
+ */
+function testAgain() {
+    navigate('test');
+}
+
+/**
+ * Download quality test report
+ */
+function downloadQualityReport() {
+    if (!diagnosticContext || !diagnosticResults) {
+        console.error('No results to download');
+        return;
+    }
+    
+    const report = {
+        timestamp: new Date().toISOString(),
+        userAgent: navigator.userAgent,
+        diagnostics: diagnosticResults,
+        noiseFloor: diagnosticContext.noiseFloorDb,
+        voiceLufs: diagnosticContext.voiceLufs,
+        voicePeak: diagnosticContext.voicePeakDb,
+        snr: diagnosticContext.snr,
+        channelBalance: diagnosticContext.channelBalance
+    };
+    
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mic-check-report-${new Date().toISOString().split('T')[0]}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
 }
 
 // ============================================
@@ -1664,7 +2051,8 @@ function setupListeners() {
     // Journey cards - handle both click and keyboard activation
     // Map journey names to route paths
     const journeyRoutes = {
-        'level-check': 'level-check',
+        'preflight': 'test',      // Pre-flight check goes to unified test page
+        'level-check': 'test',    // Legacy: redirect to test page
         'monitor': 'monitor',
         'studio': 'studio',
         'privacy': 'privacy'
@@ -1708,6 +2096,21 @@ function setupListeners() {
         runMicrophoneTest();
     });
     
+    // Quality test buttons (in the unified pre-flight check)
+    document.getElementById('btn-test-again')?.addEventListener('click', () => {
+        testAgain();
+    });
+    
+    document.getElementById('btn-download-report')?.addEventListener('click', () => {
+        downloadQualityReport();
+    });
+    
+    document.getElementById('link-open-monitor-final')?.addEventListener('click', (e) => {
+        e.preventDefault();
+        selectedMonitorDeviceId = getPrimaryDeviceId();
+        navigate('monitor');
+    });
+    
     // Open Monitor link from mic test screen
     document.getElementById('link-open-monitor')?.addEventListener('click', (e) => {
         e.preventDefault();
@@ -1744,7 +2147,7 @@ function setupListeners() {
     
     document.getElementById('link-playback-level-check')?.addEventListener('click', (e) => {
         e.preventDefault();
-        navigate('level-check');
+        navigate('test');  // Unified test page now includes level check
     });
     
     // Privacy check
@@ -2151,10 +2554,14 @@ function init() {
         onLeave: stopTest
     });
     
+    // Legacy level-check route - redirect to unified test page
     route('level-check', {
-        screen: 'screen-level-check',
-        onEnter: initLevelCheck,
-        onLeave: stopLevelCheck
+        screen: 'screen-mic-test',
+        onEnter: () => {
+            // Redirect legacy level-check URLs to the unified test page
+            navigate('test');
+        },
+        onLeave: () => {}
     });
     
     route('monitor', {
@@ -2190,7 +2597,12 @@ function init() {
         runPrivacyCheck,
         continueWithPermissionTests,
         toggleMonitoring,
-        // Level check step functions
+        // Quality test functions (unified pre-flight check)
+        startNoiseFloorTest,
+        startVoiceLevelTest,
+        testAgain,
+        downloadQualityReport,
+        // Legacy level check step functions (for backward compatibility)
         goToVoiceStep,
         startVoiceRecording,
         showQualityResults,

@@ -6,11 +6,12 @@ Use this instead of `python3 -m http.server` to avoid browser caching
 issues during development.
 """
 
+import argparse
 import http.server
 import socketserver
 import sys
 
-PORT = 8765
+DEFAULT_PORT = 8765
 
 
 class NoCacheHandler(http.server.SimpleHTTPRequestHandler):
@@ -30,9 +31,16 @@ class ReusableTCPServer(socketserver.TCPServer):
 
 
 if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='mic-check development server')
+    parser.add_argument('--port', '-p', type=int, default=DEFAULT_PORT,
+                        help=f'Port to serve on (default: {DEFAULT_PORT})')
+    args = parser.parse_args()
+
+    port = args.port
+
     try:
-        with ReusableTCPServer(("", PORT), NoCacheHandler) as httpd:
-            print(f"🎤 mic-check dev server at http://localhost:{PORT}")
+        with ReusableTCPServer(("", port), NoCacheHandler) as httpd:
+            print(f"🎤 mic-check dev server at http://localhost:{port}")
             print("   Cache-busting enabled - browsers will always fetch fresh files")
             print("   Press Ctrl+C to stop")
             try:
@@ -41,13 +49,13 @@ if __name__ == '__main__':
                 print("\n   Shutting down...")
     except OSError as e:
         if e.errno == 98:  # Address already in use
-            print(f"❌ Port {PORT} is already in use.")
+            print(f"❌ Port {port} is already in use.")
             print()
             print("   To see what's using it:")
-            print(f"      fuser {PORT}/tcp")
+            print(f"      fuser {port}/tcp")
             print()
             print("   To kill it:")
-            print(f"      fuser -k {PORT}/tcp")
+            print(f"      fuser -k {port}/tcp")
             sys.exit(1)
         else:
             raise

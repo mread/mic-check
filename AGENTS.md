@@ -64,6 +64,28 @@ This document contains:
 
 **When the user corrects a UX issue:** Consider whether it represents a new principle or example worth documenting.
 
+## Parallel Agents with Git Worktree
+
+If multiple agents need to work on this codebase simultaneously, use git worktree to create isolated working directories:
+
+```bash
+# Create a worktree for your task (from the main checkout)
+cd /home/mread/work/git-checkouts/mic-check
+git worktree add ../mic-check-feature -b feature/your-feature-name
+
+# Work in the new directory
+cd ../mic-check-feature
+
+# Run dev server on a different port to avoid conflicts
+python3 dev-server.py --port 8766
+
+# When done, remove the worktree
+cd ../mic-check
+git worktree remove ../mic-check-feature
+```
+
+**Why worktrees?** Each agent gets isolated files while sharing git history. No merge conflicts during active development.
+
 ## Code Review with CodeRabbit
 
 To review uncommitted changes in plain text mode:

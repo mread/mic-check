@@ -543,15 +543,25 @@
         }
         
         .diagnostic-table tr {
-            border-bottom: 1px solid var(--border-light, #eee);
+            border-bottom: 1px solid var(--border);
         }
         
         .diagnostic-table tr:last-child {
             border-bottom: none;
         }
         
+        /* Section header rows get extra spacing */
+        .diagnostic-table tr.diag-section-row {
+            border-bottom: none;
+        }
+        
+        /* Rows after section headers get top border instead */
+        .diagnostic-table tr.diag-section-row + tr {
+            border-top: 1px solid var(--border);
+        }
+        
         .diagnostic-table td {
-            padding: 0.6rem 0.5rem;
+            padding: 0.75rem 0.5rem;
             vertical-align: middle;
         }
         
@@ -566,15 +576,15 @@
         }
         
         .diag-name {
-            font-weight: 500;
-            font-size: 0.9rem;
-            color: var(--text);
+            /* Hidden - we use single-line display with self-explanatory messages */
+            /* Kept in DOM for layout stability (Principle #1) */
+            display: none;
         }
         
         .diag-detail {
-            font-size: 0.8rem;
-            color: var(--text-secondary);
-            margin-top: 0.15rem;
+            font-size: 0.9rem;
+            color: var(--text);
+            font-weight: 500;
         }
         
         /* Section header row within table */
@@ -632,6 +642,51 @@
             color: var(--text-secondary);
             font-size: 0.75rem;
             margin-top: 0.25rem;
+        }
+        
+        /* Quality section - inactive until prerequisites pass */
+        .diag-quality-section.inactive {
+            opacity: 0.5;
+        }
+        
+        .diag-quality-section.inactive .diag-name,
+        .diag-quality-section.inactive .diag-detail {
+            color: var(--text-muted);
+        }
+        
+        /* Inline level meter for noise/voice tests - reuses mic-level-meter styling */
+        /* Uses .mic-level-meter.inline for compact inline display in diagnostics */
+        .mic-level-meter.inline {
+            height: 12px;
+            margin-top: 0.5rem;
+            min-width: 100px;
+        }
+        
+        .mic-level-meter.inline .mic-level-meter-text {
+            font-size: 0.65rem;
+            right: 0.25rem;
+        }
+        
+        /* Recording indicator */
+        .diag-recording {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--problem);
+            font-weight: 500;
+        }
+        
+        .diag-recording-dot {
+            width: 8px;
+            height: 8px;
+            background: var(--problem);
+            border-radius: 50%;
+            animation: pulse 1s ease-in-out infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.4; }
         }
         
         /* Status Indicators */
@@ -1761,12 +1816,6 @@
                 
                 <!-- Secondary Options -->
                 <div class="home-secondary">
-                    <div class="journey-card" data-journey="level-check" role="button" tabindex="0">
-                        <div class="journey-icon">📊</div>
-                        <div class="journey-title">Level Check</div>
-                        <div class="journey-desc">Am I loud enough?</div>
-                    </div>
-                    
                     <div class="journey-card" data-journey="monitor" role="button" tabindex="0">
                         <div class="journey-icon">📡</div>
                         <div class="journey-title">Monitor</div>
@@ -1832,6 +1881,9 @@
                         </tr>
                     </thead>
                     <tbody>
+                        <tr class="diag-section-row">
+                            <td colspan="2" class="diag-section-header">System</td>
+                        </tr>
                         <tr id="diag-row-browser-support">
                             <td class="diag-test">
                                 <div class="diag-name">Browser Support</div>
@@ -1857,7 +1909,7 @@
                             <td class="diag-status"><span class="diag-icon">⏸️</span></td>
                         </tr>
                         <tr class="diag-section-row">
-                            <td colspan="2" class="diag-section-header">Selected Microphone</td>
+                            <td colspan="2" class="diag-section-header">Device</td>
                         </tr>
                         <tr id="diag-row-stream-acquisition">
                             <td class="diag-test">
@@ -1875,8 +1927,58 @@
                             </td>
                             <td class="diag-status"><span class="diag-icon">⏸️</span></td>
                         </tr>
+                        <tr class="diag-section-row diag-quality-section inactive" id="diag-section-quality">
+                            <td colspan="2" class="diag-section-header">Signal Quality</td>
+                        </tr>
+                        <tr id="diag-row-noise-floor" class="diag-quality-section inactive">
+                            <td class="diag-test">
+                                <div class="diag-name">Background Noise</div>
+                                <div class="diag-detail">Waiting for audio signal test</div>
+                                <div class="diag-action" style="display: none;"></div>
+                            </td>
+                            <td class="diag-status"><span class="diag-icon">⏸️</span></td>
+                        </tr>
+                        <tr id="diag-row-voice-level" class="diag-quality-section inactive">
+                            <td class="diag-test">
+                                <div class="diag-name">Voice Level</div>
+                                <div class="diag-detail">Waiting for noise test</div>
+                                <div class="diag-action" style="display: none;"></div>
+                            </td>
+                            <td class="diag-status"><span class="diag-icon">⏸️</span></td>
+                        </tr>
                     </tbody>
                 </table>
+                
+                <!-- Quality Test Results Summary (shown after all tests complete) -->
+                <div id="quality-summary" style="display: none; margin-top: 1.5rem; padding: 1.5rem; border-radius: 8px; text-align: center;">
+                    <div id="quality-summary-icon" style="font-size: 3rem; margin-bottom: 0.5rem;"></div>
+                    <div id="quality-summary-title" style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.25rem;"></div>
+                    <div id="quality-summary-detail" style="color: var(--text-secondary); font-size: 0.9rem;"></div>
+                </div>
+                
+                <!-- Stereo Issue Warning (shown if detected) -->
+                <div id="stereo-issue-warning" style="display: none; margin-top: 1rem; background: #fff3e0; border-left: 4px solid #ff9800; padding: 1rem; border-radius: 0 8px 8px 0;">
+                    <strong style="display: block; margin-bottom: 0.5rem;">🔧 Stereo Configuration Issue (Fixable!)</strong>
+                    <p style="margin-bottom: 0.75rem; color: var(--text-secondary);">
+                        Your mic reports as stereo but only one channel has audio. 
+                        This causes browsers to mix a silent channel with your voice, cutting volume by ~50%.
+                    </p>
+                    <details>
+                        <summary style="cursor: pointer; color: var(--accent); font-weight: 500;">How to fix</summary>
+                        <div style="margin-top: 0.75rem; font-size: 0.9rem; color: var(--text-secondary);">
+                            <strong>Windows:</strong> Sound Settings → Recording → Right-click mic → Properties → Advanced → Change to "1 channel"<br><br>
+                            <strong>macOS:</strong> Audio MIDI Setup → Select interface → Configure as mono<br><br>
+                            <strong>Then:</strong> Come back and run this test again to verify the fix.
+                        </div>
+                    </details>
+                </div>
+                
+                <!-- Final Actions (shown after quality tests complete) -->
+                <div id="quality-actions" style="display: none; margin-top: 1.5rem; display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                    <button id="btn-test-again" class="btn btn-primary">Test Again</button>
+                    <button id="btn-download-report" class="btn" style="background: var(--bg-muted); border: 1px solid var(--border);">Download Report</button>
+                    <a href="#monitor" id="link-open-monitor-final" class="btn btn-secondary">Open Monitor →</a>
+                </div>
                 
                 <!-- Actions Section (shown after diagnostics pass) -->
                 <div id="visualizer-section" style="display: none;">

@@ -16,6 +16,8 @@ export const diagnostic = {
     description: 'Checks if microphones are connected',
     scope: 'site',  // Site-level - device list is stable once permission granted
     requiresPermission: false,
+    pendingMessage: 'Looking for microphones...',
+    runningMessage: 'Detecting microphones...',
     
     /**
      * Run the diagnostic test

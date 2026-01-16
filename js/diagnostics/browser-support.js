@@ -16,6 +16,8 @@ export const diagnostic = {
     description: 'Checks if your browser supports microphone access',
     scope: 'environment',  // Never changes - browser/OS level
     requiresPermission: false,
+    pendingMessage: 'Checking browser compatibility...',
+    runningMessage: 'Checking browser APIs...',
     
     /**
      * Run the diagnostic test
