@@ -6,9 +6,14 @@
  * Note: Before permission is granted, browsers return devices
  * but with empty labels. We can still count them.
  * After permission, we get full device labels.
+ * 
+ * IMPORTANT: Chrome reports virtual "default" and "communications" devices
+ * in addition to physical devices. We deduplicate these so the count shown
+ * matches the actual number of microphones displayed in the UI.
  */
 
 import { getAudioInputDevices } from '../utils.js';
+import { deduplicateDevices } from '../multi-device-meter.js';
 
 export const diagnostic = {
     id: 'device-enumeration',
@@ -60,7 +65,6 @@ export const diagnostic = {
             };
         }
         
-        details.deviceCount = count;
         details.hasLabels = hasLabels;
         
         // Store device info (with or without labels)
@@ -90,9 +94,20 @@ export const diagnostic = {
         details.hasDefaultDevice = hasDefault;
         details.hasCommunicationsDevice = hasCommunications;
         
+        // Use deduplicated count for the message to match what the UI actually shows.
+        // Chrome reports virtual "default" and "communications" devices separately,
+        // but deduplication merges them with their physical counterparts.
+        // This prevents scary mismatches like "7 microphones found" showing only 4.
+        const deduplicated = deduplicateDevices(audioInputs);
+        const displayCount = deduplicated.length;
+        
         const message = hasLabels 
-            ? `Found ${count} microphone${count > 1 ? 's' : ''}`
-            : `${count} microphone${count > 1 ? 's' : ''} detected`;
+            ? `Found ${displayCount} microphone${displayCount !== 1 ? 's' : ''}`
+            : `${displayCount} microphone${displayCount !== 1 ? 's' : ''} detected`;
+        
+        // Store counts in details - deviceCount is what user sees (deduplicated)
+        details.deviceCount = displayCount;
+        details.rawDeviceCount = count;
         
         return {
             status: 'pass',
