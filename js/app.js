@@ -950,7 +950,9 @@ async function startVoiceLevelTest() {
  * Reset and run the test again
  */
 function testAgain() {
-    navigate('test');
+    // Can't rely on navigate('test') if already on #test - hashchange won't fire
+    // Directly run the test instead
+    runMicrophoneTest();
 }
 
 /**

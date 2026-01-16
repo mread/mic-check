@@ -1,6 +1,7 @@
 # Local development files
 *.local.md
 *.local.txt
+*.local.pdf
 
 # OS files
 .DS_Store
