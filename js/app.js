@@ -673,7 +673,7 @@ async function runMicrophoneTest() {
     audioDetected = false;
     
     // Reset UI
-    document.getElementById('visualizer-section').style.display = 'none';
+    // visualizer-section removed - no longer needed
     const detectedDevices = document.getElementById('detected-devices');
     if (detectedDevices) detectedDevices.style.display = 'none';
     document.getElementById('btn-retry-test').style.display = 'none';
@@ -755,11 +755,6 @@ async function continueWithPermissionTests() {
 }
 
 async function showSuccessUI() {
-    const visualizerSection = document.getElementById('visualizer-section');
-    
-    // Show visualizer section (contains Monitor link and playback)
-    visualizerSection.style.display = 'block';
-    
     // Hide the old detected devices card
     const detectedDevices = document.getElementById('detected-devices');
     if (detectedDevices) {
@@ -2103,19 +2098,6 @@ function setupListeners() {
     
     document.getElementById('btn-download-report')?.addEventListener('click', () => {
         downloadQualityReport();
-    });
-    
-    document.getElementById('link-open-monitor-final')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        selectedMonitorDeviceId = getPrimaryDeviceId();
-        navigate('monitor');
-    });
-    
-    // Open Monitor link from mic test screen
-    document.getElementById('link-open-monitor')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        selectedMonitorDeviceId = getPrimaryDeviceId();
-        navigate('monitor');
     });
     
     // Monitor device dropdown change
