@@ -776,9 +776,6 @@ export function stopTest() {
     // Cleanup all multi-device monitoring
     cleanupAllMonitoring();
     
-    // Cleanup playback
-    cleanupPlayback();
-    
     // Cleanup diagnostic context
     if (diagnosticContext) {
         cleanupContext(diagnosticContext);
