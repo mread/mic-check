@@ -1087,29 +1087,6 @@
             background: var(--bg-elevated);
         }
         
-        /* Monitor Screen Styles */
-        .monitor-viz-section {
-            margin-bottom: 1rem;
-        }
-        
-        .monitor-viz-header {
-            display: flex;
-            align-items: center;
-            margin-bottom: 0.5rem;
-        }
-        
-        .monitor-viz-label {
-            font-size: 0.75rem;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: var(--text-muted);
-        }
-        
-        .monitor-level-container {
-            margin-top: 0.5rem;
-        }
-        
         /* Studio Monitor Screen - DAW-inspired layout */
         .studio-layout {
             display: flex;
@@ -1816,12 +1793,6 @@
                 
                 <!-- Secondary Options -->
                 <div class="home-secondary">
-                    <div class="journey-card" data-journey="monitor" role="button" tabindex="0">
-                        <div class="journey-icon">📡</div>
-                        <div class="journey-title">Monitor</div>
-                        <div class="journey-desc">Visualize your audio</div>
-                    </div>
-                    
                     <div class="journey-card" data-journey="studio" role="button" tabindex="0">
                         <div class="journey-icon">🎚️</div>
                         <div class="journey-title">Studio</div>
@@ -2040,7 +2011,7 @@
                             optimize your hardware and OS settings for the best results.</p>
                             
                             <p style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--text-muted);">
-                                <strong>For desktop apps:</strong> If you use Discord, OBS, or streaming software, use the <strong>Monitor</strong> page
+                                <strong>For desktop apps:</strong> If you use Discord, OBS, or streaming software, use the <strong>Studio</strong> page
                                 to test with processing off and measure your raw levels against broadcast standards (-14 to -16 LUFS).
                             </p>
                             <p style="margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--border); font-size: 0.85rem; color: var(--text-muted);">
@@ -2151,165 +2122,7 @@
             </div>
         </div>
 
-        <!-- Screen 4: Audio Monitor -->
-        <div id="screen-monitor" class="screen">
-            <a href="#" class="back-link">← Back</a>
-            
-            <div class="card">
-                <div class="card-header">
-                    <span class="card-icon">📡</span>
-                    <div>
-                        <div class="card-title">Audio Monitor</div>
-                        <div class="card-subtitle">Visualize your microphone input</div>
-                    </div>
-                </div>
-                
-                <div class="monitor-device-selector" style="margin-bottom: 1.5rem;">
-                    <label for="monitor-device-select" style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Microphone</label>
-                    <select id="monitor-device-select" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem; background: white;">
-                        <option value="">Select microphone...</option>
-                    </select>
-                </div>
-                
-                <!-- Spectrogram Visualization -->
-                <div class="monitor-viz-section">
-                    <div class="monitor-viz-header">
-                        <span class="monitor-viz-label">Spectrogram</span>
-                    </div>
-                    <div class="spectrogram-container" style="display: flex; gap: 0.5rem;">
-                        <div style="display: flex; flex-direction: column; justify-content: space-between; font-size: 0.65rem; color: var(--text-muted); padding: 2px 0;">
-                            <span>High</span>
-                            <span>Low</span>
-                        </div>
-                        <div style="flex: 1;">
-                            <canvas id="monitor-spectrogram-canvas" width="600" height="120" style="width: 100%; height: 120px; border-radius: 4px; background: #0a0a0a;"></canvas>
-                            <div style="text-align: center; font-size: 0.65rem; color: var(--text-muted); margin-top: 0.25rem;">
-                                ← time (scrolls left)
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Level Meter -->
-                <div class="monitor-viz-section" style="margin-top: 1.5rem;">
-                    <div class="monitor-viz-header">
-                        <span class="monitor-viz-label">Level</span>
-                    </div>
-                    <div class="monitor-level-container">
-                        <div class="level-bar-container">
-                            <div id="monitor-level-bar" class="level-bar"></div>
-                            <span id="monitor-level-text" class="level-text">-- dB</span>
-                        </div>
-                    </div>
-                </div>
-                
-                <!-- Playback Feature -->
-                <div class="monitor-viz-section" style="margin-top: 1.5rem;">
-                    <div class="monitor-viz-header">
-                        <span class="monitor-viz-label">Record & Playback</span>
-                    </div>
-                    
-                    <div id="playback-container" style="margin-top: 0.5rem;">
-                        <!-- Playback record prompt -->
-                        <div id="playback-record-prompt" class="playback-section">
-                            <p style="color: var(--text-secondary); margin-bottom: 0.75rem; font-size: 0.9rem;">
-                                Hear what you sound like to others
-                            </p>
-                            <button id="btn-start-playback-record" class="btn btn-secondary" style="width: 100%;">
-                                🔊 Record & Play Back (5 sec)
-                            </button>
-                            <p style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.5rem;">
-                                🔒 Recording stays in your browser and is deleted when you leave
-                            </p>
-                        </div>
-                        
-                        <!-- Countdown state -->
-                        <div id="playback-countdown" class="playback-section" style="display: none; text-align: center;">
-                            <p style="color: var(--text-secondary); margin-bottom: 0.5rem;">Get ready to speak...</p>
-                            <div id="countdown-number" class="countdown-display">3</div>
-                        </div>
-                        
-                        <!-- Recording state -->
-                        <div id="playback-recording" class="playback-section" style="display: none; text-align: center;">
-                            <div class="recording-indicator">
-                                <span class="recording-dot"></span>
-                                <span>Recording...</span>
-                            </div>
-                            <div id="recording-timer" style="font-size: 1.5rem; font-weight: bold; margin: 0.5rem 0;">5</div>
-                            <p style="color: var(--text-secondary); font-size: 0.85rem;">Speak now!</p>
-                        </div>
-                        
-                        <!-- Playback controls - visible after recording completes (during ready AND playing states) -->
-                        <div id="playback-controls" class="playback-section" style="display: none;">
-                            <!-- Playback mode toggle - processed vs raw -->
-                            <div id="playback-mode-selector" class="playback-mode-toggle">
-                                <div class="playback-mode-info">
-                                    <span class="playback-mode-icon" id="playback-mode-icon">🔊</span>
-                                    <div class="playback-mode-text">
-                                        <strong id="playback-mode-label">Audio Processing</strong>
-                                        <div id="playback-mode-description" class="playback-mode-desc">
-                                            What browser apps hear
-                                        </div>
-                                    </div>
-                                </div>
-                                <label class="toggle-switch">
-                                    <input type="checkbox" id="playback-processing-toggle" checked>
-                                    <span class="toggle-slider"></span>
-                                </label>
-                            </div>
-                            
-                            <!-- Error state when one stream failed -->
-                            <div id="playback-mode-error" class="playback-mode-error" style="display: none;">
-                                <span class="error-icon">⚠️</span>
-                                <span id="playback-mode-error-text">Raw recording unavailable</span>
-                            </div>
-                            
-                            <div id="playback-warning" class="status-card warning" style="display: none; margin-bottom: 1rem;">
-                                <span class="status-icon">🔇</span>
-                                <div class="status-text">
-                                    <div class="status-title">We didn't hear much</div>
-                                    <div class="status-detail">
-                                        Your mic may be too quiet. 
-                                        <a href="#" id="link-playback-level-check" style="color: var(--accent);">Run a Level Check</a> to diagnose.
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Ready state buttons -->
-                            <div id="playback-ready-buttons" class="btn-group" style="justify-content: center;">
-                                <button id="btn-play-recording" class="btn btn-primary">
-                                    ▶️ Play Recording
-                                </button>
-                                <button id="btn-record-again" class="btn btn-secondary">
-                                    🔄 Record Again
-                                </button>
-                            </div>
-                            
-                            <!-- Playing state buttons -->
-                            <div id="playback-playing-buttons" style="display: none; text-align: center;">
-                                <div style="font-size: 1.1rem; margin-bottom: 0.5rem; color: var(--accent);">🔊 Playing...</div>
-                                <button id="btn-stop-playback" class="btn btn-secondary btn-small">
-                                    ⏹️ Stop
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <!-- Hidden audio element -->
-                        <audio id="playback-audio" style="display: none;"></audio>
-                    </div>
-                </div>
-                
-                <!-- Coming Soon Placeholder -->
-                <div class="monitor-coming-soon" style="margin-top: 1.5rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px; text-align: center;">
-                    <span style="font-size: 1.25rem;">🔮</span>
-                    <div style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 0.5rem;">
-                        <strong>Coming soon:</strong> Waveform • Frequency spectrum • Stereo field
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- Screen 5: Studio Monitor (DAW-style advanced monitoring) -->
+        <!-- Screen 4: Studio Monitor (DAW-style advanced monitoring) -->
         <div id="screen-studio" class="screen">
             <a href="#" class="back-link">← Back</a>
             

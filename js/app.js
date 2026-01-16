@@ -64,7 +64,7 @@ import {
 
 import { displayQualityResults } from './results.js';
 
-import { PlaybackRecorder, DualPlaybackRecorder, createDualStreams, getMediaRecorderSupport } from './playback.js';
+// Note: PlaybackRecorder is used by studio.js only. Remove if not needed elsewhere.
 
 import {
     initMultiMeter,
@@ -79,15 +79,6 @@ import {
     getStream,
     getAnalyser
 } from './multi-device-meter.js';
-
-import {
-    initMonitor,
-    startVisualization,
-    cleanupMonitor,
-    populateMonitorDeviceDropdown,
-    getMonitorStream,
-    getMonitorAnalyser
-} from './monitor.js';
 
 import {
     initStudio,
@@ -121,21 +112,6 @@ let diagnosticContext = null;
 let diagnosticResults = null;
 let animationId = null;
 let audioDetected = false;
-
-// Playback state
-let playbackRecorder = null;
-let dualPlaybackRecorder = null;
-let playbackCountdownTimer = null;
-let playbackRecordingTimer = null;
-let playbackPeakLevel = 0;
-let playbackAudioElement = null;
-let playbackProcessingEnabled = true; // true = processed, false = raw
-let playbackProcessedUrl = null;
-let playbackRawUrl = null;
-let playbackStreamErrors = { processed: null, raw: null };
-
-// Monitor state (for passing device between screens)
-let selectedMonitorDeviceId = null;
 
 // ============================================
 // Screen Navigation (now handled by router.js)
@@ -771,9 +747,6 @@ async function showSuccessUI() {
     if (defaultDeviceId) {
         setPrimaryDevice(defaultDeviceId);
         await enableMonitoring(defaultDeviceId);
-        
-        // Store for monitor screen handoff
-        selectedMonitorDeviceId = defaultDeviceId;
     }
     
     // Populate the mic monitor panel
@@ -1000,79 +973,6 @@ function downloadQualityReport() {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-}
-
-// ============================================
-// Monitor Screen
-// ============================================
-
-/**
- * Open the monitor screen with a specific device
- * @param {string} deviceId - Optional device ID to pre-select
- */
-function openMonitor(deviceId) {
-    // Store the device ID for monitor screen (router's onEnter will call initMonitorScreen)
-    selectedMonitorDeviceId = deviceId || getPrimaryDeviceId();
-    
-    // Navigate to monitor (router handles cleanup via onLeave)
-    navigate('monitor');
-}
-
-/**
- * Initialize the monitor screen
- */
-async function initMonitorScreen() {
-    const dropdown = document.getElementById('monitor-device-select');
-    
-    // Ensure we have permission and labels before populating dropdown
-    const { granted } = await ensurePermissionAndLabels();
-    
-    // Populate device dropdown - will show appropriate message based on permission state
-    await populateMonitorDeviceDropdown(dropdown, selectedMonitorDeviceId);
-    
-    // If permission was denied, show error state and don't try to start monitor
-    if (!granted) {
-        const spectrogramCanvas = document.getElementById('spectrogram');
-        if (spectrogramCanvas) {
-            const ctx = spectrogramCanvas.getContext('2d');
-            ctx.fillStyle = '#f5f5f5';
-            ctx.fillRect(0, 0, spectrogramCanvas.width, spectrogramCanvas.height);
-            ctx.fillStyle = '#666';
-            ctx.font = '14px system-ui';
-            ctx.textAlign = 'center';
-            ctx.fillText('Microphone access blocked', spectrogramCanvas.width / 2, spectrogramCanvas.height / 2);
-        }
-        return;
-    }
-    
-    // Get the device ID to use
-    const deviceId = dropdown.value || selectedMonitorDeviceId;
-    
-    if (deviceId) {
-        const result = await initMonitor(deviceId);
-        if (result.success) {
-            // Start visualization
-            const spectrogramCanvas = document.getElementById('monitor-spectrogram-canvas');
-            const levelBar = document.getElementById('monitor-level-bar');
-            const levelText = document.getElementById('monitor-level-text');
-            
-            startVisualization(spectrogramCanvas, levelBar, levelText);
-        } else {
-            // Show error in level display
-            const levelText = document.getElementById('monitor-level-text');
-            if (levelText) {
-                levelText.textContent = result.error || 'Failed to start';
-            }
-            console.warn('Failed to initialize monitor:', result.error);
-        }
-    }
-}
-
-/**
- * Stop the monitor and cleanup
- */
-export function stopMonitor() {
-    cleanupMonitor();
 }
 
 // ============================================
@@ -1510,466 +1410,6 @@ function stopStudioScreen() {
     cleanupStudio();
 }
 
-/**
- * Handle device change in monitor dropdown
- */
-async function onMonitorDeviceChange(deviceId) {
-    if (!deviceId) return;
-    
-    selectedMonitorDeviceId = deviceId;
-    
-    const result = await initMonitor(deviceId);
-    if (result.success) {
-        const spectrogramCanvas = document.getElementById('monitor-spectrogram-canvas');
-        const levelBar = document.getElementById('monitor-level-bar');
-        const levelText = document.getElementById('monitor-level-text');
-        
-        startVisualization(spectrogramCanvas, levelBar, levelText);
-    } else {
-        // Show error in level display
-        const levelText = document.getElementById('monitor-level-text');
-        if (levelText) {
-            levelText.textContent = result.error || 'Failed to start';
-        }
-        console.warn('Failed to switch monitor device:', result.error);
-    }
-}
-
-// ============================================
-// Playback Feature
-// ============================================
-function cleanupPlayback() {
-    if (playbackCountdownTimer) {
-        clearTimeout(playbackCountdownTimer);
-        playbackCountdownTimer = null;
-    }
-    if (playbackRecordingTimer) {
-        clearInterval(playbackRecordingTimer);
-        playbackRecordingTimer = null;
-    }
-    
-    // Clean up legacy single recorder
-    if (playbackRecorder) {
-        if (playbackRecorder.getIsRecording()) {
-            playbackRecorder.abort();
-        }
-        playbackRecorder.cleanup();
-        playbackRecorder = null;
-    }
-    
-    // Clean up dual recorder
-    if (dualPlaybackRecorder) {
-        if (dualPlaybackRecorder.getIsRecording()) {
-            dualPlaybackRecorder.abort();
-        }
-        dualPlaybackRecorder.cleanup();
-        dualPlaybackRecorder.releaseStreams();
-        dualPlaybackRecorder = null;
-    }
-    
-    if (playbackAudioElement) {
-        playbackAudioElement.pause();
-        playbackAudioElement.src = '';
-    }
-    
-    // Revoke blob URLs to prevent memory leaks
-    // (avoid double-revoking by tracking what we've revoked)
-    if (playbackProcessedUrl) {
-        URL.revokeObjectURL(playbackProcessedUrl);
-    }
-    if (playbackRawUrl && playbackRawUrl !== playbackProcessedUrl) {
-        URL.revokeObjectURL(playbackRawUrl);
-    }
-    
-    // Reset dual recording state
-    playbackProcessedUrl = null;
-    playbackRawUrl = null;
-    playbackStreamErrors = { processed: null, raw: null };
-    playbackProcessingEnabled = true;
-    
-    // Reset UI
-    resetPlaybackModeUI();
-    
-    // Reset to initial prompt state (container is always visible on Monitor screen)
-    showPlaybackSection('playback-record-prompt');
-    playbackPeakLevel = 0;
-}
-
-/**
- * Reset the playback mode toggle UI to default state
- */
-function resetPlaybackModeUI() {
-    const toggle = document.getElementById('playback-processing-toggle');
-    const label = document.getElementById('playback-mode-label');
-    const desc = document.getElementById('playback-mode-description');
-    const icon = document.getElementById('playback-mode-icon');
-    const errorEl = document.getElementById('playback-mode-error');
-    const selector = document.getElementById('playback-mode-selector');
-    
-    if (toggle) {
-        toggle.checked = true;
-        toggle.disabled = false;
-    }
-    if (label) label.textContent = 'Audio Processing';
-    if (desc) desc.textContent = 'What browser apps hear';
-    if (icon) icon.textContent = '🔊';
-    if (errorEl) errorEl.style.display = 'none';
-    if (selector) selector.classList.remove('disabled');
-}
-
-/**
- * Update the playback mode UI based on current state and errors
- */
-function updatePlaybackModeUI() {
-    const toggle = document.getElementById('playback-processing-toggle');
-    const desc = document.getElementById('playback-mode-description');
-    const icon = document.getElementById('playback-mode-icon');
-    const errorEl = document.getElementById('playback-mode-error');
-    const errorText = document.getElementById('playback-mode-error-text');
-    const selector = document.getElementById('playback-mode-selector');
-    
-    // Check for errors
-    const hasProcessedError = playbackStreamErrors.processed !== null;
-    const hasRawError = playbackStreamErrors.raw !== null;
-    
-    // If one mode failed, show error and disable toggle
-    if (hasProcessedError || hasRawError) {
-        if (errorEl && errorText) {
-            errorEl.style.display = 'flex';
-            if (hasRawError) {
-                errorText.textContent = 'Raw recording unavailable — browser limitation';
-                // Force toggle to ON (processed) and disable
-                if (toggle) {
-                    toggle.checked = true;
-                    toggle.disabled = true;
-                }
-                playbackProcessingEnabled = true;
-            } else if (hasProcessedError) {
-                errorText.textContent = 'Processed recording unavailable — using raw';
-                // Force toggle to OFF (raw) and disable
-                if (toggle) {
-                    toggle.checked = false;
-                    toggle.disabled = true;
-                }
-                playbackProcessingEnabled = false;
-            }
-        }
-        if (selector) selector.classList.add('disabled');
-    } else {
-        if (errorEl) errorEl.style.display = 'none';
-        if (toggle) toggle.disabled = false;
-        if (selector) selector.classList.remove('disabled');
-    }
-    
-    // Update description based on current mode
-    if (desc) {
-        desc.textContent = playbackProcessingEnabled 
-            ? 'What browser apps hear' 
-            : 'Raw microphone signal';
-    }
-    if (icon) {
-        icon.textContent = playbackProcessingEnabled ? '🔊' : '🎤';
-    }
-}
-
-function showPlaybackSection(sectionId) {
-    // Main mutually exclusive sections
-    const mainSections = [
-        'playback-record-prompt',
-        'playback-countdown',
-        'playback-recording',
-        'playback-controls'  // Contains both ready and playing button groups
-    ];
-    
-    // Determine which main section to show
-    let mainSectionToShow = sectionId;
-    if (sectionId === 'playback-ready' || sectionId === 'playback-playing') {
-        mainSectionToShow = 'playback-controls';
-    }
-    
-    mainSections.forEach(id => {
-        const el = document.getElementById(id);
-        if (el) {
-            el.style.display = id === mainSectionToShow ? 'block' : 'none';
-        }
-    });
-    
-    // Toggle between ready and playing button groups within playback-controls
-    const readyButtons = document.getElementById('playback-ready-buttons');
-    const playingButtons = document.getElementById('playback-playing-buttons');
-    
-    if (readyButtons && playingButtons) {
-        if (sectionId === 'playback-playing') {
-            readyButtons.style.display = 'none';
-            playingButtons.style.display = 'block';
-        } else if (sectionId === 'playback-ready') {
-            readyButtons.style.display = 'flex';
-            playingButtons.style.display = 'none';
-        }
-    }
-}
-
-async function startPlaybackRecording() {
-    // Get stream from monitor to extract device ID
-    const monitorStream = getMonitorStream() || diagnosticContext?.stream;
-    
-    if (!monitorStream) {
-        console.error('No stream available for playback recording');
-        return;
-    }
-    
-    // Get device ID from current monitor stream
-    const track = monitorStream.getAudioTracks()[0];
-    const settings = track?.getSettings();
-    const deviceId = settings?.deviceId || selectedMonitorDeviceId;
-    
-    // Reset state
-    playbackPeakLevel = 0;
-    playbackProcessingEnabled = true;
-    playbackStreamErrors = { processed: null, raw: null };
-    resetPlaybackModeUI();
-    
-    if (playbackCountdownTimer) {
-        clearTimeout(playbackCountdownTimer);
-        playbackCountdownTimer = null;
-    }
-    
-    showPlaybackSection('playback-countdown');
-    const countdownEl = document.getElementById('countdown-number');
-    let count = 3;
-    countdownEl.textContent = count;
-    
-    const runCountdown = () => {
-        count--;
-        if (count > 0) {
-            countdownEl.textContent = count;
-            playbackCountdownTimer = setTimeout(runCountdown, 1000);
-        } else {
-            startDualRecording(deviceId);
-        }
-    };
-    
-    playbackCountdownTimer = setTimeout(runCountdown, 1000);
-}
-
-/**
- * Start dual recording - captures both processed and raw streams
- * @param {string} deviceId - The device ID to record from
- */
-async function startDualRecording(deviceId) {
-    showPlaybackSection('playback-recording');
-    
-    const timerEl = document.getElementById('recording-timer');
-    let secondsLeft = 5;
-    timerEl.textContent = secondsLeft;
-    
-    // Create dual streams (processed and raw)
-    const { processedStream, rawStream, errors: streamErrors } = await createDualStreams(deviceId);
-    
-    // Check if we have at least one stream
-    if (!processedStream && !rawStream) {
-        console.error('Failed to get any streams for recording');
-        showPlaybackSection('playback-record-prompt');
-        return;
-    }
-    
-    // Store stream errors for UI
-    playbackStreamErrors = streamErrors;
-    
-    // Start the visual countdown timer
-    playbackRecordingTimer = setInterval(() => {
-        secondsLeft--;
-        timerEl.textContent = Math.max(0, secondsLeft);
-        
-        // Track peak level using monitor stream
-        const analyser = getMonitorAnalyser();
-        if (analyser) {
-            const rms = getRmsFromAnalyser(analyser);
-            if (rms > playbackPeakLevel) {
-                playbackPeakLevel = rms;
-            }
-        }
-        
-        if (secondsLeft <= 0) {
-            clearInterval(playbackRecordingTimer);
-            playbackRecordingTimer = null;
-        }
-    }, 1000);
-    
-    try {
-        // Create dual recorder with available streams
-        // If one stream failed, create single recorders for the working one
-        if (processedStream && rawStream) {
-            dualPlaybackRecorder = new DualPlaybackRecorder(processedStream, rawStream);
-            const result = await dualPlaybackRecorder.start(5000);
-            playbackProcessedUrl = result.processedUrl;
-            playbackRawUrl = result.rawUrl;
-            
-            // Merge any recording errors
-            if (result.errors.processed) {
-                playbackStreamErrors.processed = result.errors.processed;
-            }
-            if (result.errors.raw) {
-                playbackStreamErrors.raw = result.errors.raw;
-            }
-        } else if (processedStream) {
-            // Only processed stream available
-            playbackRecorder = new PlaybackRecorder(processedStream);
-            playbackProcessedUrl = await playbackRecorder.start(5000);
-            playbackRawUrl = null;
-        } else {
-            // Only raw stream available
-            playbackRecorder = new PlaybackRecorder(rawStream);
-            playbackRawUrl = await playbackRecorder.start(5000);
-            playbackProcessedUrl = null;
-        }
-        
-        // Release the recording streams (monitor continues separately)
-        if (dualPlaybackRecorder) {
-            dualPlaybackRecorder.releaseStreams();
-        } else {
-            // Release single stream
-            if (processedStream) {
-                processedStream.getTracks().forEach(t => t.stop());
-            }
-            if (rawStream) {
-                rawStream.getTracks().forEach(t => t.stop());
-            }
-        }
-        
-        // Set up audio element for playback
-        playbackAudioElement = document.getElementById('playback-audio');
-        if (playbackAudioElement.src && playbackAudioElement.src.startsWith('blob:')) {
-            URL.revokeObjectURL(playbackAudioElement.src);
-        }
-        
-        // Default to processed if available, otherwise raw
-        const defaultUrl = playbackProcessedUrl || playbackRawUrl;
-        playbackAudioElement.src = defaultUrl;
-        playbackProcessingEnabled = playbackProcessedUrl !== null;
-        
-        // Update toggle UI to match what's available
-        updatePlaybackModeUI();
-        
-        // Show warning if audio was too quiet (based on processed stream if available)
-        const warningEl = document.getElementById('playback-warning');
-        if (playbackPeakLevel < 0.02) {
-            warningEl.style.display = 'flex';
-        } else {
-            warningEl.style.display = 'none';
-        }
-        
-        showPlaybackSection('playback-ready');
-    } catch (error) {
-        console.error('Recording failed:', error);
-        if (playbackRecordingTimer) {
-            clearInterval(playbackRecordingTimer);
-            playbackRecordingTimer = null;
-        }
-        // Clean up streams
-        if (processedStream) {
-            processedStream.getTracks().forEach(t => t.stop());
-        }
-        if (rawStream) {
-            rawStream.getTracks().forEach(t => t.stop());
-        }
-        showPlaybackSection('playback-record-prompt');
-    }
-}
-
-function playRecording() {
-    // Get the URL for the currently selected mode
-    const url = playbackProcessingEnabled ? playbackProcessedUrl : playbackRawUrl;
-    
-    if (!playbackAudioElement || !url) return;
-    
-    // Update audio source if it changed (user toggled mode)
-    if (playbackAudioElement.src !== url) {
-        playbackAudioElement.src = url;
-    }
-    
-    showPlaybackSection('playback-playing');
-    playbackAudioElement.play();
-    
-    playbackAudioElement.onended = () => {
-        showPlaybackSection('playback-ready');
-    };
-}
-
-function stopPlayback() {
-    if (playbackAudioElement) {
-        playbackAudioElement.pause();
-        playbackAudioElement.currentTime = 0;
-    }
-    showPlaybackSection('playback-ready');
-}
-
-function recordAgain() {
-    if (playbackAudioElement) {
-        playbackAudioElement.pause();
-        playbackAudioElement.src = '';
-    }
-    
-    // Clean up dual recorder
-    if (dualPlaybackRecorder) {
-        dualPlaybackRecorder.cleanup();
-        dualPlaybackRecorder = null;
-    }
-    
-    // Clean up legacy single recorder
-    if (playbackRecorder) {
-        playbackRecorder.cleanup();
-        playbackRecorder = null;
-    }
-    
-    // Revoke blob URLs
-    if (playbackProcessedUrl) {
-        URL.revokeObjectURL(playbackProcessedUrl);
-        playbackProcessedUrl = null;
-    }
-    if (playbackRawUrl) {
-        URL.revokeObjectURL(playbackRawUrl);
-        playbackRawUrl = null;
-    }
-    
-    startPlaybackRecording();
-}
-
-/**
- * Handle playback mode toggle change
- * @param {boolean} processingEnabled - true for processed, false for raw
- */
-function onPlaybackModeChange(processingEnabled) {
-    playbackProcessingEnabled = processingEnabled;
-    
-    // Update UI description
-    const desc = document.getElementById('playback-mode-description');
-    const icon = document.getElementById('playback-mode-icon');
-    
-    if (desc) {
-        desc.textContent = processingEnabled 
-            ? 'What browser apps hear' 
-            : 'Raw microphone signal';
-    }
-    if (icon) {
-        icon.textContent = processingEnabled ? '🔊' : '🎤';
-    }
-    
-    // If audio is currently playing, switch to the new source
-    if (playbackAudioElement && !playbackAudioElement.paused) {
-        const newUrl = processingEnabled ? playbackProcessedUrl : playbackRawUrl;
-        if (newUrl && playbackAudioElement.src !== newUrl) {
-            // Remember current playback position
-            const currentTime = playbackAudioElement.currentTime;
-            
-            // Switch source and resume from same position
-            playbackAudioElement.src = newUrl;
-            playbackAudioElement.currentTime = currentTime;
-            playbackAudioElement.play();
-        }
-    }
-}
-
 // ============================================
 // Privacy Check
 // ============================================
@@ -2048,7 +1488,6 @@ function setupListeners() {
     const journeyRoutes = {
         'preflight': 'test',      // Pre-flight check goes to unified test page
         'level-check': 'test',    // Legacy: redirect to test page
-        'monitor': 'monitor',
         'studio': 'studio',
         'privacy': 'privacy'
     };
@@ -2098,38 +1537,6 @@ function setupListeners() {
     
     document.getElementById('btn-download-report')?.addEventListener('click', () => {
         downloadQualityReport();
-    });
-    
-    // Monitor device dropdown change
-    document.getElementById('monitor-device-select')?.addEventListener('change', (e) => {
-        onMonitorDeviceChange(e.target.value);
-    });
-    
-    // Playback controls
-    document.getElementById('btn-start-playback-record')?.addEventListener('click', () => {
-        startPlaybackRecording();
-    });
-    
-    document.getElementById('btn-play-recording')?.addEventListener('click', () => {
-        playRecording();
-    });
-    
-    document.getElementById('btn-record-again')?.addEventListener('click', () => {
-        recordAgain();
-    });
-    
-    document.getElementById('btn-stop-playback')?.addEventListener('click', () => {
-        stopPlayback();
-    });
-    
-    // Playback mode toggle (processed vs raw)
-    document.getElementById('playback-processing-toggle')?.addEventListener('change', (e) => {
-        onPlaybackModeChange(e.target.checked);
-    });
-    
-    document.getElementById('link-playback-level-check')?.addEventListener('click', (e) => {
-        e.preventDefault();
-        navigate('test');  // Unified test page now includes level check
     });
     
     // Privacy check
@@ -2546,12 +1953,6 @@ function init() {
         onLeave: () => {}
     });
     
-    route('monitor', {
-        screen: 'screen-monitor',
-        onEnter: initMonitorScreen,
-        onLeave: stopMonitor
-    });
-    
     route('studio', {
         screen: 'screen-studio',
         onEnter: initStudioScreen,
@@ -2573,7 +1974,6 @@ function init() {
     window.MicCheck = {
         navigate,
         stopTest,
-        stopMonitor,
         stopStudioScreen,
         stopLevelCheck,
         runPrivacyCheck,

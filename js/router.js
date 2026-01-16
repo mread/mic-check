@@ -4,7 +4,7 @@
  * A simple client-side router using hash fragments.
  * Enables bookmarkable URLs and browser back/forward navigation.
  * 
- * URLs: /#test, /#monitor, /#level-check, /#privacy
+ * URLs: /#test, /#studio, /#level-check, /#privacy
  * 
  * Inspired by common patterns from Navigo, Page.js, and vanilla router implementations.
  */

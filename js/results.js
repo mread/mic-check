@@ -6,7 +6,7 @@
  * LEVEL CHECK PURPOSE:
  * The Level Check helps diagnose "why am I too quiet in calls?"
  * Tests if your mic provides enough signal for browser apps (with AGC/processing ON).
- * For raw level measurement, users should use the Monitor page.
+ * For raw level measurement, users should use the Studio page.
  * 
  * If issues are found, the user should proceed to Gain Staging (coming soon)
  * to optimize their hardware and OS settings.
@@ -251,7 +251,7 @@ export function displayQualityResults() {
             <div style="margin-top: 0.75rem; padding: 1rem; background: var(--bg-muted); border-radius: 8px; color: var(--text-secondary);">
                 <p style="margin-bottom: 0.75rem;">${agcExplanation}</p>
                 <p style="margin-bottom: 0;">
-                    <strong>For raw levels:</strong> Use the <strong>Monitor</strong> page with processing OFF to measure 
+                    <strong>For raw levels:</strong> Use the <strong>Studio</strong> page with processing OFF to measure 
                     your raw microphone signal for desktop apps like OBS, Discord, or DAWs.
                 </p>
             </div>
