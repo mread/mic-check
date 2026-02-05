@@ -41,6 +41,12 @@ const studioState = {
     spectrogramCtx: null,
     frequencyData: null,
     
+    // Spectrogram auto-scaling
+    spectrogramMaxFreq: 8000,      // Current max frequency displayed (Hz)
+    spectrogramTargetFreq: 8000,   // Target max frequency (smoothed towards)
+    spectrogramLastLabelFreq: 8000, // Last frequency used for labels (for hysteresis)
+    spectrogramLastLabelTime: 0,   // Last time labels were updated
+    
     // Spectrum analyzer
     spectrumCtx: null,
     
@@ -679,22 +685,104 @@ function updateLufsColor(el, lufs) {
 }
 
 /**
- * Draw spectrogram visualization
+ * Draw spectrogram visualization with auto-scaling
+ * 
+ * Auto-scaling: finds the frequency that contains 90% of audio energy
+ * and smoothly adjusts the display range to focus on useful content.
+ * 
+ * Uses efficient shift-and-draw-one-column approach. When scale changes
+ * significantly, clears the canvas so new content matches the current scale.
  */
 function drawSpectrogram(ctx, canvas, frequencyData) {
     const width = canvas.width;
     const height = canvas.height;
-    
-    // Shift existing image left by 1 pixel
-    const imageData = ctx.getImageData(1, 0, width - 1, height);
-    ctx.putImageData(imageData, 0, 0);
-    
-    // Draw new column on the right
+    const sampleRate = studioState.audioContext?.sampleRate || 48000;
     const numBins = frequencyData.length;
-    const usableBins = Math.floor(numBins * 0.5); // Focus on lower frequencies
-    const binHeight = height / usableBins;
     
-    for (let i = 0; i < usableBins; i++) {
+    // Calculate frequency per bin
+    const hzPerBin = sampleRate / (numBins * 2);
+    
+    // --- Auto-scaling: find 90th percentile frequency ---
+    let totalEnergy = 0;
+    for (let i = 0; i < numBins; i++) {
+        totalEnergy += frequencyData[i] * frequencyData[i];
+    }
+    
+    const threshold = totalEnergy * 0.90;
+    let cumulativeEnergy = 0;
+    let percentile90Bin = numBins;
+    
+    for (let i = 0; i < numBins; i++) {
+        cumulativeEnergy += frequencyData[i] * frequencyData[i];
+        if (cumulativeEnergy >= threshold) {
+            percentile90Bin = i;
+            break;
+        }
+    }
+    
+    const MIN_FREQ = 2000;
+    const MAX_FREQ = 20000;
+    const HEADROOM = 1.2;
+    
+    let targetFreq = Math.max(MIN_FREQ, Math.min(MAX_FREQ, percentile90Bin * hzPerBin * HEADROOM));
+    
+    // Only update target if there's meaningful audio AND the change is significant
+    // This hysteresis prevents small fluctuations from triggering scale changes
+    if (totalEnergy > 1000) {
+        const targetChangeRatio = Math.abs(targetFreq - studioState.spectrogramTargetFreq) / studioState.spectrogramTargetFreq;
+        // Only update target if it changed by more than 25%
+        if (targetChangeRatio > 0.25) {
+            studioState.spectrogramTargetFreq = targetFreq;
+        }
+    }
+    
+    // Smooth towards target (very slow)
+    const smoothing = 0.998;
+    studioState.spectrogramMaxFreq = 
+        studioState.spectrogramMaxFreq * smoothing + 
+        studioState.spectrogramTargetFreq * (1 - smoothing);
+    
+    // Calculate how many bins to display
+    const maxBin = Math.min(numBins, Math.ceil(studioState.spectrogramMaxFreq / hzPerBin));
+    
+    // --- Update axis labels (with hysteresis and throttling) ---
+    const now = performance.now();
+    const scaleChangeRatio = Math.abs(studioState.spectrogramMaxFreq - studioState.spectrogramLastLabelFreq) / studioState.spectrogramLastLabelFreq;
+    const timeSinceLastUpdate = now - studioState.spectrogramLastLabelTime;
+    let scaleChanged = false;
+    
+    // Require >20% change AND at least 2 seconds since last update
+    // Or force update after 10 seconds to keep labels accurate
+    if (timeSinceLastUpdate > 2000 && (scaleChangeRatio > 0.20 || timeSinceLastUpdate > 10000)) {
+        updateSpectrogramAxisLabels(studioState.spectrogramMaxFreq);
+        studioState.spectrogramLastLabelFreq = studioState.spectrogramMaxFreq;
+        studioState.spectrogramLastLabelTime = now;
+        scaleChanged = scaleChangeRatio > 0.10; // Only mark if actual scale change, not just timeout
+    }
+    
+    // --- Shift existing image left by 1 pixel (or clear on scale change) ---
+    if (scaleChanged) {
+        ctx.fillStyle = '#0a0a0a';
+        ctx.fillRect(0, 0, width, height);
+    } else {
+        const imageData = ctx.getImageData(1, 0, width - 1, height);
+        ctx.putImageData(imageData, 0, 0);
+    }
+    
+    // --- Draw faint vertical line to mark scale change ---
+    if (scaleChanged) {
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(width - 1.5, 0);
+        ctx.lineTo(width - 1.5, height);
+        ctx.stroke();
+    }
+    
+    // --- Draw new column on the right ---
+    const binHeight = height / maxBin;
+    
+    for (let i = 0; i < maxBin; i++) {
         const value = frequencyData[i];
         
         // Color mapping: dark blue -> cyan -> green -> yellow -> white
@@ -716,6 +804,45 @@ function drawSpectrogram(ctx, canvas, frequencyData) {
         const y = height - (i + 1) * binHeight;
         ctx.fillRect(width - 1, y, 1, binHeight + 1);
     }
+}
+
+/**
+ * Update spectrogram axis labels based on current frequency range
+ */
+function updateSpectrogramAxisLabels(maxFreq) {
+    const axisContainer = document.querySelector('.studio-spectrogram-axis');
+    if (!axisContainer) return;
+    
+    // Round maxFreq to nice values for display
+    const niceMax = maxFreq >= 10000 ? Math.round(maxFreq / 1000) + 'k' :
+                    maxFreq >= 1000 ? (maxFreq / 1000).toFixed(1).replace(/\.0$/, '') + 'k' :
+                    Math.round(maxFreq) + '';
+    
+    // Generate 4 evenly-spaced labels (top to bottom: max, 2/3, 1/3, min)
+    const labels = [
+        niceMax,
+        formatFreq(maxFreq * 0.66),
+        formatFreq(maxFreq * 0.33),
+        formatFreq(maxFreq * 0.05) // Near bottom, not quite zero
+    ];
+    
+    // Update labels (reuse existing spans)
+    const spans = axisContainer.querySelectorAll('span');
+    for (let i = 0; i < spans.length && i < labels.length; i++) {
+        if (spans[i].textContent !== labels[i]) {
+            spans[i].textContent = labels[i];
+        }
+    }
+}
+
+/**
+ * Format frequency value for axis label
+ */
+function formatFreq(hz) {
+    if (hz >= 1000) {
+        return (hz / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
+    }
+    return Math.round(hz) + '';
 }
 
 /**
@@ -1147,6 +1274,10 @@ export async function cleanupStudio() {
     studioState.deviceId = null;
     studioState.spectrogramCtx = null;
     studioState.frequencyData = null;
+    studioState.spectrogramMaxFreq = 8000;
+    studioState.spectrogramTargetFreq = 8000;
+    studioState.spectrogramLastLabelFreq = 8000;
+    studioState.spectrogramLastLabelTime = 0;
     studioState.spectrumCtx = null;
     studioState.oscilloscopeCtx = null;
     studioState.timeDomainData = null;
